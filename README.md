@@ -1,6 +1,6 @@
 # PowerAL
 
-Current version: 0.63
+Current version: 0.64
 
 A Powershell module for interacting with AppLocker.
 Module is designed to be able to run in Constrained language mode.

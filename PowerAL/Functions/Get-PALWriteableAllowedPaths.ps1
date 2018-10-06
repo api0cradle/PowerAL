@@ -106,41 +106,47 @@ Script C:\Windows\SysWOW64\com\dmp
             }
 
             #remove deny rules from the return array
-            $denyrules = Get-PALRules -OutputRules Path -RuleActions Deny -ResolvePaths
+            $denyrules = Get-PALRules -OutputRules Path -RuleActions Deny
             $FinaleArray = @()
-            
-            foreach($pat in $PathArray)
+            if($denyrules)
             {
-                # Deny rules present for section?
-                if($denyrules[($denyrules.Name.IndexOf($pat.Name))])
+                foreach($pat in $PathArray)
                 {
-                    foreach($denr in $denyrules[($denyrules.Name.IndexOf($pat.Name))])
-                    { #DLL, EXE, MSI...
-                        
-                        foreach($pa in $denr.ruleslist.path)
-                        {
-                            $diffe = $($pat.path)
-                            if($pa -like "*$diffe*")
+                    # Deny rules present for section?
+                    if($denyrules[($denyrules.Name.IndexOf($pat.Name))])
+                    {
+                        foreach($denr in $denyrules[($denyrules.Name.IndexOf($pat.Name))])
+                        { #DLL, EXE, MSI...
+                            
+                            foreach($pa in $denr.ruleslist.path)
                             {
-                            }
-                            else
-                            {
-                                #Not
-                                $DuObject = New-Object PSObject
-                                $DuObject | Add-Member NoteProperty Name $Denr.Name
-                                $DuObject | Add-Member NoteProperty Path $pat.path
-                                $FinaleArray += $DuObject
+                                $diffe = $($pat.path)
+                                if($pa -like "*$diffe*")
+                                {
+                                }
+                                else
+                                {
+                                    #Not
+                                    $DuObject = New-Object PSObject
+                                    $DuObject | Add-Member NoteProperty Name $Denr.Name
+                                    $DuObject | Add-Member NoteProperty Path $pat.path
+                                    $FinaleArray += $DuObject
+                                }
                             }
                         }
                     }
+                    else
+                    {
+                        $FinaleArray += $pat
+                    }
                 }
-                else
-                {
-                    $FinaleArray += $pat
-                }
+                return $FinaleArray
             }
-
-            return $FinaleArray
+            else
+            {
+                #No deny rules - return patharray instead
+                return $PathArray
+            }
         }
         Catch
         {
