@@ -1,0 +1,1 @@
+Get-ChildItem (Join-Path $PSScriptRoot\Functions\ *.ps1) | % { . $_.FullName}
