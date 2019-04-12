@@ -7,7 +7,7 @@ Returns the status on the Application Identity (AppIDSVC) service from the local
 
 Author: @oddvarmoe
 License: BSD 3-Clause
-Required Dependencies: None
+Required Dependencies: Get-Process
 Optional Dependencies: None
 
 .DESCRIPTION
@@ -23,6 +23,9 @@ Name      Status StartType
 ----      ------ ---------
 AppIDSvc Stopped    Manual
 #>    
+
+# Function Version: 0.90
+
 	[CmdletBinding()] Param ()
     Process
     {

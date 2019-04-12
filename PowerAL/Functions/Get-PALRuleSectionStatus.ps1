@@ -1,4 +1,4 @@
-function Get-PALRulesStatus
+function Get-PALRuleSectionStatus
 {
 <#
 .SYNOPSIS
@@ -17,7 +17,7 @@ Status can be either "Not Configured", "Enforced" or "Auditing"
 
 .EXAMPLE
 
-PS C:\> Get-PALRulesStatus
+PS C:\> Get-PALRuleSectionStatus
 
 Name   Status  
 ----   ------  
@@ -27,6 +27,9 @@ Exe    Enforced
 Msi    Auditing
 Script Not configured
 #>
+
+# Function Version: 1.0
+
     [CmdletBinding()] Param ()
     Process
     {
@@ -38,25 +41,28 @@ Script Not configured
 		    foreach($RuleType in $RuleTypes)
             {
                 $Out = New-Object PSObject
-		    	$RuleStatus = Get-ItemProperty -path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\SrpV2\$RuleType"
+                $RegPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\SrpV2\$RuleType"
 
 		    	# EnforcementMode missing = Not configured
 		    	# EnforcementMode 0 = Audit mode
 		    	# EnforcementMode 1 = Enforced
-		    	If($RuleStatus -eq $null)
+                $RuleStatus = Get-ItemProperty -Path $RegPath -Name "EnforcementMode" -ErrorAction SilentlyContinue
+                If (($RuleStatus -ne $null) -and ($RuleStatus.Length -ne 0)) {
+                    $EnforcementMode = (Get-ItemProperty -path $RegPath -Name "EnforcementMode").EnforcementMode
+                        
+                    If($EnforcementMode -eq "1")
+                    {
+                        $Result = "Enforced"
+                    }
+                    elseif($EnforcementMode -eq "0")
+                    {
+                        $Result = "Audit"
+                    }    
+                }
+                else
                 {
-		    	    $Result = "Not configured"
-		    	}
-
-		    	If($RuleStatus.EnforcementMode -eq 1)
-                {
-		    		$Result = "Enforced"
-		    	}
-
-		    	If($RuleStatus.EnforcementMode -eq 0)
-                {
-		    		$Result = "Auditing"
-		    	}
+                    $Result = "NotConfigured"
+                }
 
 		    	$Out | Add-Member Noteproperty -name "Name" $RuleType
 		    	$Out | Add-Member Noteproperty -name "Status" $Result

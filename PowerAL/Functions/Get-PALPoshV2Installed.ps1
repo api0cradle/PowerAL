@@ -19,9 +19,12 @@ If it is present, Powershell can be started with -version 2 to bypass constraine
 
 PS C:\> Get-PALPoshV2Installed
 
-true
+True
 
 #>  
+
+# Function Version: 1.00
+
     [CmdletBinding()] Param ()
     Process
     {

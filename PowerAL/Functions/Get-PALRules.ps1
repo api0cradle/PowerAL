@@ -1,21 +1,22 @@
 function Get-PALRules
 {
-#Requires -Modules AppLocker
 <#
 .SYNOPSIS
 
-The function Get-PALRules returns the AppLocker rules as an object that is current on the local machine.
+The function Get-PALRules returns the AppLocker rules as an object that is current on the local machine from the registry.
+AppLocker rules are written to registry.
  
 
 Author: @oddvarmoe
 License: BSD 3-Clause
-Required Dependencies: Get-AppLockerPolicy (Native windows), Expand-PALPaths
+Required Dependencies: Expand-PALPaths
 Optional Dependencies: None
 
 .DESCRIPTION
 
 Will check against local registry under HKLM:\SOFTWARE\Policies\Microsoft\Windows\SrpV2\ to find the AppLocker rules. 
-Rules are stored as XML in the registry, the function converts it to an object before it returns it.
+Rules are stored as XML in the registry, the function converts it to an object before it returns it. The function also supports to export the rules to an xml 
+that can be extracted and viewed offline
 
 .PARAMETER OutputRules
 
@@ -27,6 +28,11 @@ Can be "All","Path","Publisher","Hash"
 What sort of rules you want. Default is "All"
 Can be "All","Allow","Deny"
 
+.PARAMETER RuleSection
+
+What sort of section you want the rules for. Default is "All
+Can be "All","Dll","Exe","Script","Appx","Msi"
+
 .PARAMETER SID
 
 The SID you want to get the rules for. 
@@ -36,12 +42,15 @@ List of well-known SIDs can be found here: https://support.microsoft.com/en-au/h
 
 .PARAMETER XML
 
-Switch. Returns output in XML format instead of Powershell objects. 
+Switch. Returns output in XML format instead of Powershell objects. This makes it possible to export the data.
+Note that it is not supported to specify Outputrules, RuleActions, RuleSection or SID when using this option.
+The function exports all rules from the registry.
 
 .PARAMETER OfflineXML
 
 Path to OfflineXML that you have exported. 
-This makes the function parse that file instead of the current AppLocker policy on the machine this script is running on.
+This makes the function parse that file instead of the current AppLocker policy on the machine this script is running on. 
+This function is currently now developed so it is adviced to use the Get-PALRulesNative instead for now.
 
 .EXAMPLE
 Gets all the AppLocker rules
@@ -81,7 +90,7 @@ PS C:\> Get-PALRules -OutputRules Publisher
 Name RulesList                                                                                                                       
 ---- ---------                                                                                                                       
 Appx {@{Ruletype=FilePublisherRule; Action=Allow; SID=S-1-1-0; Description=Allows members of the Everyone group to run packaged ap...
-Exe  {@{Ruletype=FilePublisherRule; Action=Deny; SID=S-1-1-0; Description=; Name=CIPHER.EXE, in MICROSOFT® WINDOWS® OPERATING SYST...
+Exe  {@{Ruletype=FilePublisherRule; Action=Deny; SID=S-1-1-0; Description=; Name=CIPHER.EXE, in MICROSOFTÂ® WINDOWSÂ® OPERATING SYST...
 Msi  {@{Ruletype=FilePublisherRule; Action=Allow; SID=S-1-1-0; Description=Allows members of the Everyone group to run digitally s...
 
 .EXAMPLE
@@ -91,19 +100,19 @@ Exports the rules to an XML file
 PS C:\> (Get-PALRules -XML).Save("c:\folder\Export.xml")
 
 .EXAMPLE
-    
-Gets AppLocker rules from the specified XML file
 
-PS C:\> Get-PALRules -OfflineXML C:\folder\Export.xml
+Gets only allowed script rules.
 
+PS C:\> Get-PALRules -OutputRules All -RuleActions Deny -RuleSection Script
 
-Name   RulesList                                                                                                                                                                                     
-----   ---------                                                                                                                                                                                     
-Appx   {@{Ruletype=FilePublisherRule; Action=Allow; SID=S-1-1-0; Description=Allows members of the Everyone group to run packaged apps that are signed.; Name=(Default Rule) All signed packaged a...
-Exe    {@{Ruletype=FilePathRule; Action=Allow; SID=S-1-1-0; Description=Allows members of the Everyone group to run applications that are located in the Program Files folder.; Name=(Default Rule...
-Msi    {@{Ruletype=FilePublisherRule; Action=Allow; SID=S-1-1-0; Description=Allows members of the Everyone group to run digitally signed Windows Installer files.; Name=(Default Rule) All digita...
-Script {@{Ruletype=FilePathRule; Action=Allow; SID=S-1-1-0; Description=Allows members of the Everyone group to run scripts that are located in the Program Files folder.; Name=(Default Rule) All...
+Name   RulesList                                                                                                                                                                                                      
+----   ---------                                                                                                                                                                                                      
+Script {@{ParentName=Script; Ruletype=FilePathRule; Action=Deny; SID=S-1-1-0; Description=; Name=%WINDIR%\SysWOW64\Tasks\evil.exe; Id=88548f1b-4850-45d5-a551-2ab549fb0372; Path=C:\Windows\SysWOW64\Tasks\evil.exe...
+
 #>
+
+# Function Version: 0.90
+
     [CmdletBinding()] Param (
         [ValidateSet("All","Path","Publisher","Hash")]
         [String]
@@ -112,6 +121,10 @@ Script {@{Ruletype=FilePathRule; Action=Allow; SID=S-1-1-0; Description=Allows m
         [ValidateSet("All","Allow","Deny")]
         [String]
         $RuleActions = "All",
+
+        [ValidateSet("All","Appx","Dll","Exe","Msi","Script")]
+        [String]
+        $RuleSection = "All",
 
         [String]
         #S-1-1-0 = Everyone - Default
@@ -128,205 +141,241 @@ Script {@{Ruletype=FilePathRule; Action=Allow; SID=S-1-1-0; Description=Allows m
     {
         Try
         {
+            $RuleTypes = @("Appx","Dll","Exe","Msi","Script")
+
             If($OfflineXML)
             {
-                [XML]$Rules = Get-content -Path $OfflineXML
+                write-error "OfflineXML not implemented yet. Still possible with Get-PALRulesNative -OfflineXML"
+                break
+            }
+
+            If($XML) #Method to export rules from registry to a valid XML file
+            {
+                $TempXML = "<AppLockerPolicy Version=`"1`"`>"
+                foreach($RuleType in $RuleTypes)
+                {
+                    $RegPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\SrpV2\$RuleType"
+                    $AppLockerRulesRegistry = Get-childItem -path $RegPath
+                    
+                    $HeadersAllowWindows = (Get-ItemProperty -path $RegPath -Name "AllowWindows").AllowWindows
+                    
+                    $ValueExists = Get-ItemProperty -Path $RegPath -Name "EnforcementMode" -ErrorAction SilentlyContinue
+                    If (($ValueExists -ne $null) -and ($ValueExists.Length -ne 0)) {
+                        $EnforcementMode = (Get-ItemProperty -path $RegPath -Name "EnforcementMode").EnforcementMode
+                        
+                        If($EnforcementMode -eq "1")
+                        {
+                            $HeadersEnforcementMode = "Enabled"
+                        }
+                        elseif($EnforcementMode -eq "0")
+                        {
+                            $HeadersEnforcementMode = "Audit"
+                        }    
+                    }
+                    else
+                    {
+                        $HeadersEnforcementMode = "NotConfigured"
+                    }
+  
+                    $TempXML += "<RuleCollection Type=`"$RuleType`" EnforcementMode=`"$HeadersEnforcementMode`"`>"
+	                foreach($rule in $AppLockerRulesRegistry)
+                    {
+	                	[XML]$RuleXML = (Get-ItemProperty -Path $rule.PSPath).value
+	                	$TempXML += $RuleXML.InnerXML
+                    }
+                    #End the ruletype currently proccessing
+	                $TempXML += "</RuleCollection`>"
+                }
+                $TempXML += "</AppLockerPolicy`>"
+                return ([xml]$TempXML)
             }
             else
             {
-                [XML]$Rules = Get-AppLockerPolicy -Effective -xml		
-            }
-
-            # All rules to XML as output if XML switch is on
-            if($XML)
-            {
-                if($OutputRules -eq "All" -and $RuleActions -eq "All")
+                $AllRulesArray = @()
+                if($RuleSection -ne "All")
                 {
-                    return $Rules
+                    $RuleTypes = @($RuleSection)
                 }
-                else
+		    	foreach($RuleType in $RuleTypes)
                 {
-                    # Need a method to get selection rules to XML!
-                    # Maybe V.next
-                    "I do not support XML export of subset of rules and actions. Maybe next version - Sorry...."
-                    return $null
-                }
-            }
-
-            $AllRulesArray = @()
-
-            foreach($col in $Rules.AppLockerPolicy.RuleCollection)
-            {
-
-                $ParentRulesObject = New-Object PSObject
-		        $ParentRulesObject | Add-Member NoteProperty 'Name' $col.Type
+		    	    
+                    Write-Verbose "Processing $RuleType"
+		        	$SectionRules = Get-childItem -path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\SrpV2\$RuleType"
                 
-		    	#Array to store objects in
-		        $RulesArray = @()
-            
-                if($col.FilePublisherRule)
-                {
-                    if($OutputRules -eq "Publisher" -or $OutputRules -eq "All")
-                    {
-                        foreach($co in $col.FilePublisherRule)
+		        	$ParentRulesObject = New-Object PSObject
+		        	$ParentRulesObject | Add-Member NoteProperty 'Name' $RuleType
+                
+		        	#Array to store objects in
+		        	$RulesArray = @()
+                
+		        	foreach($rule in $SectionRules) {
+		        		[XML]$XML = (Get-ItemProperty -Path $rule.PSPath).value
+                                    
+		        		##Publisher rule
+		        		if(($xml.FirstChild.LocalName) -eq "FilePublisherRule")
                         {
-                            if($co.action -eq $RuleActions -or $RuleActions -eq "All")
+		        			if($OutputRules -eq "Publisher" -or $OutputRules -eq "All")
                             {
-                                if($co.UserOrGroupSid -eq $SID -or $SID -eq "*")
+		        				if($xml.FirstChild.Action -eq $RuleActions -or $RuleActions -eq "All")
                                 {
-                                    $RulesObject = New-Object PSObject
-                                                
-            			            #Common structure for all rule types
-            			            $RulesObject | Add-Member NoteProperty 'Ruletype' "FilePublisherRule"
-            			            $RulesObject | Add-Member NoteProperty 'Action' $co.Action
-            			            $RulesObject | Add-Member NoteProperty 'SID' $co.UserOrGroupSid
-            			            $RulesObject | Add-Member NoteProperty 'Description' $co.Description
-            			            $RulesObject | Add-Member NoteProperty 'Name' $co.Name
-            			            $RulesObject | Add-Member NoteProperty 'Id' $co.Id
-                                    
-            			            #Special Publisher attributes
-            			            $RulesObject | Add-Member NoteProperty 'PublisherName' $co.Conditions.FilePublisherCondition.PublisherName
-            			            $RulesObject | Add-Member NoteProperty 'Productname' $co.Conditions.FilePublisherCondition.ProductName
-            			            $RulesObject | Add-Member NoteProperty 'BinaryName' $co.Conditions.FilePublisherCondition.BinaryName
-            			            $RulesObject | Add-Member NoteProperty 'LowSection' $co.Conditions.FilePublisherCondition.BinaryVersionRange.LowSection
-            			            $RulesObject | Add-Member NoteProperty 'HighSection' $co.Conditions.FilePublisherCondition.BinaryVersionRange.HighSection
-                                    
-                                    #Exceptions
-                                    if($co.Exceptions.FilePathCondition)
-                                    {
-                                        $RealExceptionsPath = Expand-PALPath -Path $($co.Exceptions.FilePathCondition.Path)
-                                        $RulesObject | Add-Member NoteProperty 'PathExceptions' $RealExceptionsPath
-                                        $RulesObject | Add-Member NoteProperty 'RulePathExceptions' $co.Conditions.FilePathCondition.Path
-                                    }
-                                    if($co.Exceptions.FileHashCondition)
-                                    {
-                                        $RulesObject | Add-Member NoteProperty 'HashExceptions' $co.Exceptions.FileHashCondition
-                                    }
-                                    if($co.Exceptions.FilePublisherCondition)
-                                    {
-                                        $RulesObject | Add-Member NoteProperty 'PublisherExceptions' $co.Exceptions.FilePublisherCondition
-                                    }
+                                    if($xml.FirstChild.UserOrGroupSid -eq $SID -or $SID -eq "*")
+                                    {   
 
-                                    $RulesArray += $RulesObject
-                                }
-                            }
-                        }
-                    }
-                }
-            
-                if($col.FilePathRule)
-                {
-                    if($OutputRules -eq "Path" -or $OutputRules -eq "All")
-                    {
-                        foreach($co in $col.FilePathRule)
-                        {
-                            if($co.action -eq $RuleActions -or $RuleActions -eq "All")
-                            {
-                                $RealPath = Expand-PALPath -Path $($co.Conditions.FilePathCondition.Path)
-                                if($co.UserOrGroupSid -eq $SID -or $SID -eq "*")
-                                {
-                                    foreach($Path in $RealPath)
-                                    {
-                                        $RulesObject = New-Object PSObject
-                                            
-                                        #Common structure for all rule types
-                                        $RulesObject | Add-Member NoteProperty 'Ruletype' "FilePathRule"
-                                        $RulesObject | Add-Member NoteProperty 'Action' $co.Action
-                                        $RulesObject | Add-Member NoteProperty 'SID' $co.UserOrGroupSid
-                                        $RulesObject | Add-Member NoteProperty 'Description' $co.Description
-                                        $RulesObject | Add-Member NoteProperty 'Name' $co.Name
-                                        $RulesObject | Add-Member NoteProperty 'Id' $co.Id
+		        					    write-verbose "Publisher rule"
+		        					    $RulesObject = New-Object PSObject
                                 
-                                        #Special Path attributes
-                                        $RulesObject | Add-Member NoteProperty 'Path' $Path
-                                        $RulesObject | Add-Member NoteProperty 'RulePath' $co.Conditions.FilePathCondition.Path
-                                        
+		        					    #Common structure for all rule types
+		        					    $RulesObject | Add-Member NoteProperty 'ParentName' $RuleType
+                                        $RulesObject | Add-Member NoteProperty 'Ruletype' $xml.FirstChild.LocalName
+		        					    $RulesObject | Add-Member NoteProperty 'Action' $xml.FirstChild.Action
+		        					    $RulesObject | Add-Member NoteProperty 'SID' $xml.FirstChild.UserOrGroupSid
+		        					    $RulesObject | Add-Member NoteProperty 'Description' $xml.FirstChild.Description
+		        					    $RulesObject | Add-Member NoteProperty 'Name' $xml.FirstChild.Name
+		        					    $RulesObject | Add-Member NoteProperty 'Id' $xml.FirstChild.Id
+                                
+		        					    #Special Publisher attributes
+		        					    $RulesObject | Add-Member NoteProperty 'PublisherName' $xml.FilePublisherRule.Conditions.FilePublisherCondition.PublisherName
+		        					    $RulesObject | Add-Member NoteProperty 'Productname' $xml.FilePublisherRule.Conditions.FilePublisherCondition.ProductName
+		        					    $RulesObject | Add-Member NoteProperty 'BinaryName' $xml.FilePublisherRule.Conditions.FilePublisherCondition.BinaryName
+		        					    $RulesObject | Add-Member NoteProperty 'LowSection' $xml.FilePublisherRule.Conditions.FilePublisherCondition.BinaryVersionRange.LowSection
+		        					    $RulesObject | Add-Member NoteProperty 'HighSection' $xml.FilePublisherRule.Conditions.FilePublisherCondition.BinaryVersionRange.HighSection
+
                                         #Exceptions
-                                        if($co.Exceptions.FilePathCondition)
+                                        if($xml.FirstChild.Exceptions.FilePathCondition)
                                         {
-                                            $RealExceptionsPath = Expand-PALPath -Path $($co.Exceptions.FilePathCondition.Path)
+                                            $RealExceptionsPath = Expand-PALPath -Path $($xml.FirstChild.Exceptions.FilePathCondition.Path)
                                             $RulesObject | Add-Member NoteProperty 'PathExceptions' $RealExceptionsPath
-                                            $RulesObject | Add-Member NoteProperty 'RulePathExceptions' $co.Exceptions.FilePathCondition.Path
+                                            $RulesObject | Add-Member NoteProperty 'RulePathExceptions' $xml.FirstChild.Exceptions.FilePathCondition.Path
                                         }
-                                        if($co.Exceptions.FileHashCondition)
+                                        if($xml.FirstChild.Exceptions.FileHashCondition)
                                         {
-                                            $RulesObject | Add-Member NoteProperty 'HashExceptions' $co.Exceptions.FileHashCondition
+                                            $RulesObject | Add-Member NoteProperty 'HashExceptions' $xml.FirstChild.Exceptions.FileHashCondition
                                         }
-                                        if($co.Exceptions.FilePublisherCondition)
+                                        if($xml.FirstChild.Exceptions.FilePublisherCondition)
                                         {
-                                            $RulesObject | Add-Member NoteProperty 'PublisherExceptions' $co.Exceptions.FilePublisherCondition
+                                            $RulesObject | Add-Member NoteProperty 'PublisherExceptions' $xml.FirstChild.Exceptions.FilePublisherCondition
                                         }
-                                
-                                        $RulesArray += $RulesObject
+
+                                        $RulesArray += $RulesObject 
                                     }
-                                }
-                            }
-                        }
-                    }
-                }
-                if($col.FileHashRule)
-                {
-                    if($OutputRules -eq "Hash" -or $OutputRules -eq "All")
-                    {
-                        foreach($co in $col.FileHashRule)
+		        				}
+		        			}
+		        		}
+                    
+		        		##File hash rule
+		        		if(($xml.FirstChild.LocalName) -eq "FileHashRule")
                         {
-                            if($co.action -eq $RuleActions -or $RuleActions -eq "All")
+		        			if($OutputRules -eq "Hash" -or $OutputRules -eq "All")
                             {
-                                if($co.UserOrGroupSid -eq $SID -or $SID -eq "*")
+		        				if($xml.FirstChild.Action -eq $RuleActions -or $RuleActions -eq "All")
                                 {
-                                    $RulesObject = New-Object PSObject
-                                        
-            			            #Common structure for all rule types
-            			            $RulesObject | Add-Member NoteProperty 'Ruletype' "FileHashRule"
-            			            $RulesObject | Add-Member NoteProperty 'Action' $co.Action
-            			            $RulesObject | Add-Member NoteProperty 'SID' $co.UserOrGroupSid
-            			            $RulesObject | Add-Member NoteProperty 'Description' $co.Description
-            			            $RulesObject | Add-Member NoteProperty 'Name' $co.Name
-            			            $RulesObject | Add-Member NoteProperty 'Id' $co.Id
-            
-            			            #Special Hash attributes
-            			            $RulesObject | Add-Member NoteProperty 'HashType' $co.Conditions.FileHashCondition.FileHash.Type
-            			            $RulesObject | Add-Member NoteProperty 'Hash' $co.Conditions.FileHashCondition.FileHash.Hash
-            			            $RulesObject | Add-Member NoteProperty 'Filename' $co.Conditions.FileHashCondition.FileHash.SourceFileName
-            			            $RulesObject | Add-Member NoteProperty 'Sourcefile Length' $co.Conditions.FileHashCondition.FileHash.SourceFileLength
-                                    
-                                    #Exceptions
-                                    if($co.Exceptions.FilePathCondition)
+                                    if($xml.FirstChild.UserOrGroupSid -eq $SID -or $SID -eq "*")
                                     {
-                                        $RealExceptionsPath = Expand-PALPath -Path $($co.Exceptions.FilePathCondition.Path)
-                                        $RulesObject | Add-Member NoteProperty 'PathExceptions' $RealExceptionsPath
-                                        $RulesObject | Add-Member NoteProperty 'RulePathExceptions' $co.Conditions.FilePathCondition.Path
-                                    }
-                                    if($co.Exceptions.FileHashCondition)
-                                    {
-                                        $RulesObject | Add-Member NoteProperty 'HashExceptions' $co.Exceptions.FileHashCondition
-                                    }
-                                    if($co.Exceptions.FilePublisherCondition)
-                                    {
-                                        $RulesObject | Add-Member NoteProperty 'PublisherExceptions' $co.Exceptions.FilePublisherCondition
-                                    }
+                                        write-verbose "Hash rule"
+		        					    $RulesObject = New-Object PSObject
 
-                                    $RulesArray += $RulesObject
+		        					    #Common structure for all rule types
+                                        $RulesObject | Add-Member NoteProperty 'ParentName' $RuleType
+		        					    $RulesObject | Add-Member NoteProperty 'Ruletype' $xml.FirstChild.LocalName
+		        					    $RulesObject | Add-Member NoteProperty 'Action' $xml.FirstChild.Action
+		        					    $RulesObject | Add-Member NoteProperty 'SID' $xml.FirstChild.UserOrGroupSid
+		        					    $RulesObject | Add-Member NoteProperty 'Description' $xml.FirstChild.Description
+		        					    $RulesObject | Add-Member NoteProperty 'Name' $xml.FirstChild.Name
+		        					    $RulesObject | Add-Member NoteProperty 'Id' $xml.FirstChild.Id
+
+		        					    #Special Hash attributes
+		        					    $RulesObject | Add-Member NoteProperty 'HashType' $xml.FileHashRule.Conditions.FileHashCondition.FileHash.Type
+		        					    $RulesObject | Add-Member NoteProperty 'Hash' $xml.FileHashRule.Conditions.FileHashCondition.FileHash.Hash
+		        					    $RulesObject | Add-Member NoteProperty 'Filename' $xml.FileHashRule.Conditions.FileHashCondition.FileHash.SourceFileName
+		        					    $RulesObject | Add-Member NoteProperty 'Sourcefile Length' $xml.FileHashRule.Conditions.FileHashCondition.FileHash.SourceFileLength
+
+                                        #Exceptions
+                                        if($xml.FirstChild.Exceptions.FilePathCondition)
+                                        {
+                                            $RealExceptionsPath = Expand-PALPath -Path $($xml.FirstChild.Exceptions.FilePathCondition.Path)
+                                            $RulesObject | Add-Member NoteProperty 'PathExceptions' $RealExceptionsPath
+                                            $RulesObject | Add-Member NoteProperty 'RulePathExceptions' $xml.FirstChild.Exceptions.FilePathCondition.Path
+                                        }
+                                        if($xml.FirstChild.Exceptions.FileHashCondition)
+                                        {
+                                            $RulesObject | Add-Member NoteProperty 'HashExceptions' $xml.FirstChild.Exceptions.FileHashCondition
+                                        }
+                                        if($xml.FirstChild.Exceptions.FilePublisherCondition)
+                                        {
+                                            $RulesObject | Add-Member NoteProperty 'PublisherExceptions' $xml.FirstChild.Exceptions.FilePublisherCondition
+                                        }
+
+                                        $RulesArray += $RulesObject 
+                                    }
+		        				}
+		        			}
+		        		}
+                    
+		        		##Path rule
+		        		if(($xml.FirstChild.LocalName) -eq "FilePathRule")
+                        {
+		        			if($OutputRules -eq "Path" -or $OutputRules -eq "All")
+                            {
+		        				if($xml.FirstChild.Action -eq $RuleActions -or $RuleActions -eq "All")
+                                {
+                                    $RealPath = Expand-PALPath -Path $($xml.FirstChild.Conditions.FilePathCondition.Path)
+                                    if($xml.FirstChild.UserOrGroupSid -eq $SID -or $SID -eq "*")
+                                    {
+		        					    write-verbose "Path rule"
+                                        foreach($Path in $RealPath)
+                                        {
+		        					        $RulesObject = New-Object PSObject
+                        
+		        					        #Common structure for all rule types
+                                            $RulesObject | Add-Member NoteProperty 'ParentName' $RuleType
+		        					        $RulesObject | Add-Member NoteProperty 'Ruletype' $xml.FirstChild.LocalName
+		        					        $RulesObject | Add-Member NoteProperty 'Action' $xml.FirstChild.Action
+		        					        $RulesObject | Add-Member NoteProperty 'SID' $xml.FirstChild.UserOrGroupSid
+		        					        $RulesObject | Add-Member NoteProperty 'Description' $xml.FirstChild.Description
+		        					        $RulesObject | Add-Member NoteProperty 'Name' $xml.FirstChild.Name
+		        					        $RulesObject | Add-Member NoteProperty 'Id' $xml.FirstChild.Id
+
+		        					        #Special Path attributes
+		        					        $RulesObject | Add-Member NoteProperty 'Path' $Path
+                                            $RulesObject | Add-Member NoteProperty 'RulePath' $xml.FilePathRule.Conditions.FilePathCondition.Path
+
+                                            #Exceptions
+                                            if($xml.FirstChild.Exceptions.FilePathCondition)
+                                            {
+                                                $RealExceptionsPath = Expand-PALPath -Path $($xml.FirstChild.Exceptions.FilePathCondition.Path)
+                                                $RulesObject | Add-Member NoteProperty 'PathExceptions' $RealExceptionsPath
+                                                $RulesObject | Add-Member NoteProperty 'RulePathExceptions' $xml.FirstChild.Exceptions.FilePathCondition.Path
+                                            }
+                                            if($xml.FirstChild.Exceptions.FileHashCondition)
+                                            {
+                                                $RulesObject | Add-Member NoteProperty 'HashExceptions' $xml.FirstChild.Exceptions.FileHashCondition
+                                            }
+                                            if($xml.FirstChild.Exceptions.FilePublisherCondition)
+                                            {
+                                                $RulesObject | Add-Member NoteProperty 'PublisherExceptions' $xml.FirstChild.Exceptions.FilePublisherCondition
+                                            }
+
+                                            $RulesArray += $RulesObject 
+                                        }
+		        				    }
                                 }
-                            }
-                        }
-                    }
-                }
-                
-		        # Only add to object if rules are found
-		        if($RulesArray)
-                {
-		            $arrList=$RulesArray
-		            #[System.Collections.ArrayList]$arrList=$RulesArray
-		        	$ParentRulesObject | Add-Member NoteProperty -Name RulesList -Value $arrList
-		        	$AllRulesarray += $ParentRulesObject
+		        			}
+		        		}
+		        	}
+                                    
+		        	# Only add to object if rules are found
+		        	if($RulesArray) {
+                        $ParentRulesObject | Add-Member NoteProperty -Name RulesList -Value $RulesArray
+		        		$AllRulesarray += $ParentRulesObject
+		        	}
 		        }
-		    }
 
-	        if($AllRulesArray)
-            {
-	        	return $AllRulesArray
-	        }
+		        if($AllRulesArray)
+                {
+                    return $AllRulesArray
+		        }
+            }
+
         }
         Catch
         {

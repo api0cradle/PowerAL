@@ -6,10 +6,11 @@
 Checks given path/file if it is allowed or denied by the AppLocker rules.
 When a folder path is checked it will return allow if the folder path is allowed in either EXE,DLL,MSI,SCRIPT,APPX.
 When a file path is checked it will only check the correct section. EX: file.exe is only checked against EXE path rules.
+The function does not handle exceptions yet.
 
 Author: @oddvarmoe
 License: BSD 3-Clause
-Required Dependencies: Get-PALRules
+Required Dependencies: Get-PALRules,Get-PALRulesNative
 Optional Dependencies: None
 
 .DESCRIPTION
@@ -35,14 +36,14 @@ Path to OfflineXML that you have exported.
 This makes the function parse that file instead of the current AppLocker policy on the machine this script is running on.
 
 .EXAMPLE
-Tests status of NETFXSBS10.exe. This is blocked in this example.
+Tests status of cmd.exe. This is allowed in this example.
 
 PS C:\> Get-PALPathStatus -Path "C:\windows\system32\cmd.exe"
 
 Allow
 
 .EXAMPLE
-Tests if c:\temp is blocked or not by the rules. c:\temp is not a blocked path in this example.
+Tests if c:\blockedpath is blocked or not by the rules. The path is a blocked path in this example.
 
 PS C:\> Get-PALPathStatus -Path "C:\blockedpath"
 
@@ -63,6 +64,9 @@ PS C:\> Get-PALPathStatus -Path "C:\block" -SID "S-1-5-32-544"
 Deny
 
 #>    
+
+# Function Version: 0.90
+
     [CmdletBinding()] Param (
         [Parameter(Mandatory=$true)]
         [String]
@@ -134,7 +138,7 @@ Deny
             if($OfflineXML)
             {
                 Write-Verbose "Parsing rules from XML"
-                $PathRules = Get-PALRules -OutputRules Path -RuleActions All -OfflineXML $OfflineXML -SID $sid
+                $PathRules = Get-PALRulesNative -OutputRules Path -RuleActions All -OfflineXML $OfflineXML -SID $sid
             }
             else
             {
@@ -148,39 +152,39 @@ Deny
                 $Paths = @()
                 $Exceptions = @()
                 
-                foreach($Pr in $PathRules)
+                foreach($PathRule in $PathRules)
                 {
-                    $Parent = $Pr.Name
+                    $Parent = $PathRule.Name
                     
-                    foreach($P in $Pr.RulesList)
+                    foreach($PathRuleObj in $PathRule.RulesList)
                     {
-                        #Exceptions
-                        if($P.PathExceptions)
+                        #Exceptions - Stores Exceptions in Exceptions array
+                        if($PathRuleObj.PathExceptions)
                         {
                             write-verbose "Exceptions present"
-                            foreach($ex in $P.PathExceptions)
+                            foreach($RuleException in $PathRuleObj.PathExceptions)
                             {
-                                if($SID -eq $P.sid -or $SID -eq "*")
+                                if($SID -eq $PathRuleObj.sid -or $SID -eq "*")
                                 {
                                     #SID match - Create object
                                     #$InjectiblePaths += Get-PALWriteablepaths -Path $pa
                                     $TmpExceptionObject = New-Object psobject
 
                                     #The path is file
-                                    if($ex -match "\.\w{2,4}$" -or $ExTemp -eq "*.*")
+                                    if($RuleException -match "\.\w{2,4}$")
                                     {
-                                        $TmpExceptionObject | Add-Member NoteProperty Path $ex
+                                        $TmpExceptionObject | Add-Member NoteProperty Path $RuleException
                                         $TmpExceptionObject | Add-Member NoteProperty Type "File"
                                     }
                                     else
                                     {
                                         #Folder
-                                        $TmpExceptionObject | Add-Member NoteProperty Path (join-path (split-path $ex) -ChildPath "")
+                                        $TmpExceptionObject | Add-Member NoteProperty Path (join-path (split-path $RuleException) -ChildPath "")
                                         $TmpExceptionObject | Add-Member NoteProperty Type "Folder"
                                     }
                                     $TmpExceptionObject | Add-Member NoteProperty Action "Deny"
                                     $TmpExceptionObject | Add-Member NoteProperty Name $Parent
-                                    $TmpExceptionObject | Add-Member NoteProperty SID $p.sid
+                                    $TmpExceptionObject | Add-Member NoteProperty SID $PathRuleObj.sid
 
                                     #Add exception object to exception array
                                     $Exceptions += $TmpExceptionObject
@@ -189,27 +193,27 @@ Deny
                         }
 
                         # Rules
-                        if($SID -eq $P.sid -or $SID -eq "*")
+                        if($SID -eq $PathRuleObj.sid -or $SID -eq "*")
                         {
                             $TmpPathObject = New-Object psobject
 
                             #File
-                            if($P -match "\.\w{2,4}$" -or $Temp -eq "*.*")
+                            if($PathRuleObj -match "\.\w{2,4}$")
                             {
-                                $TmpPathObject | Add-Member NoteProperty Path $P.Path
+                                $TmpPathObject | Add-Member NoteProperty Path $PathRuleObj.Path
                                 $TmpPathObject | Add-Member NoteProperty Type "File"
                             }
                             else
                             {
                                 #Folder
                                 #$TmpPathObject | Add-Member NoteProperty Path (join-path (split-path $pa) -ChildPath "")
-                                $TmpPathObject | Add-Member NoteProperty Path $P.Path
+                                $TmpPathObject | Add-Member NoteProperty Path $PathRuleObj.Path
                                 $TmpPathObject | Add-Member NoteProperty Type "Folder"
                             }
                         
-                            $TmpPathObject | Add-Member NoteProperty Action $P.Action
+                            $TmpPathObject | Add-Member NoteProperty Action $PathRuleObj.Action
                             $TmpPathObject | Add-Member NoteProperty Name $Parent
-                            $TmpPathObject | Add-Member NoteProperty SID $P.sid
+                            $TmpPathObject | Add-Member NoteProperty SID $PathRuleObj.sid
                             
                             # Add path object to path array
                             $Paths += $TmpPathObject
@@ -219,48 +223,50 @@ Deny
 
                 $ReturnArray = @()
 
+                ##Exceptions not implemented.
+                ## NEXT VERSION TODO
                 #Exceptions / Deny
-                foreach($Except in $Exceptions)
-                {
-                    if($Except.Type -eq "File")
-                    {
-                        if($Except.Name -eq $FileType)
-                        {
-                            if($Path.ToLower().Contains($Except.path.ToLower()))
-                            {
-                                $Status = "Deny"
-                                Write-Verbose "Denied by Exception in rule: $Except"
-                                return $Status
-                            }
-                        }
-                    }
-                    
-                    if($Except.Type -eq "Folder")
-                    {
-                        if($Type -eq "File")
-                        {
-                            if($Except.name -eq $FileType)
-                            {
-                                if($Path.ToLower().Contains($Except.path.ToLower()))
-                                {
-                                    $Status = "Deny"
-                                    Write-Verbose "Denied by Exception in rule: $Except"
-                                    return $Status
-                                }
-                            }
-                        }
-                        else
-                        {
-                            if($Path.ToLower().Contains($Except.path.ToLower()))
-                            {
-                                # MATCH PATH
-                                $Status = "Deny"
-                                Write-Verbose "Denied by Exception in rule: $Except"
-                                return $Status
-                            }
-                        }
-                    }
-                }
+                #foreach($Except in $Exceptions)
+                #{
+                #    if($Except.Type -eq "File")
+                #    {
+                #        if($Except.Name -eq $FileType)
+                #        {
+                #            if($Path.ToLower().Contains($Except.path.ToLower()))
+                #            {
+                #                ##$Status = "Deny"
+                #                Write-Verbose "Denied by Exception in rule: $Except"
+                #                return $Status
+                #            }
+                #        }
+                #    }
+                #    
+                #    if($Except.Type -eq "Folder")
+                #    {
+                #        if($Type -eq "File")
+                #        {
+                #            if($Except.name -eq $FileType)
+                #            {
+                #                if($Path.ToLower().Contains($Except.path.ToLower()))
+                #                {
+                #                    ##$Status = "Deny"
+                #                    Write-Verbose "Denied by Exception in rule: $Except"
+                #                    return $Status
+                #                }
+                #            }
+                #        }
+                #        else
+                #        {
+                #            if($Path.ToLower().Contains($Except.path.ToLower()))
+                #            {
+                #                # MATCH PATH
+                #                ##$Status = "Deny"
+                #                Write-Verbose "Denied by Exception in rule: $Except"
+                #                return $Status
+                #            }
+                #        }
+                #    }
+                #}
                 
                 foreach($Pth in $Paths)
                 {
@@ -274,7 +280,6 @@ Deny
                                 if($Pth.Action -eq "Deny")
                                 {
                                     Write-Verbose "Explicit denied by Path rule: $Pth"
-                                    return $Status
                                 }
                             }
                         }
@@ -294,7 +299,6 @@ Deny
                                     if($Pth.Action -eq "Deny")
                                     {
                                         Write-Verbose "Explicit denied by Path rule: $Pth"
-                                        return $Status
                                     }
                                 }
                             }
@@ -303,14 +307,13 @@ Deny
                         {
                             if($Path.ToLower().Contains($Pth.path.ToLower()))
                             {
-                                # MATCH PATH
                                 $ReturnArray += $pth
                                 Write-Verbose "Allowed in $($pth.name)"
                                 $Status = $Pth.Action
+                                
                                 if($Pth.Action -eq "Deny")
                                 {
                                     Write-Verbose "Explicit denied by Path rule: $Pth"
-                                    return $Status
                                 }
                             }
                         }
@@ -322,6 +325,7 @@ Deny
                 }
                 else
                 {
+                    Write-Verbose "No rules that denies or allows the path."
                     return "Deny"
                 }
             }

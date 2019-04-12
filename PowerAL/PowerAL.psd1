@@ -12,7 +12,7 @@
 RootModule = '.\PowerAL.psm1'
 
 # Version number of this module.
-ModuleVersion = '0.64'
+ModuleVersion = '0.90'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()

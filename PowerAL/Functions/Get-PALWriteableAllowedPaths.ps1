@@ -3,7 +3,7 @@ function Get-PALWriteableAllowedPaths
 <#
 .SYNOPSIS
 
-Lists paths that are allowed for execution that the current user can write to. 
+Lists paths that are allowed for execution that the current user can write to. Currently does not handle Exceptions that are defined in rules, only explicit deny rules.
 
 Author: @oddvarmoe
 License: BSD 3-Clause
@@ -15,6 +15,15 @@ Optional Dependencies: None
 Retrieves the path from all the allowed AppLocker path rules and checks the paths against Get-PALWriteablePaths. 
 It will also remove paths that are explicit denied.
 Outputs: Name,Path
+
+.PARAMETER Rerun
+When this switch is used it will rerun the Get-PALWriteablePaths and give fresh results stored 
+in the Global variable WriteablePaths
+
+.PARAMETER RuleSection
+What sort of section you want the rules for. Default is "All
+Can be "All","Dll","Exe","Script","Appx","Msi". This Parameter is passed to the Get-PALRules.
+
 
 .EXAMPLE
 
@@ -64,80 +73,116 @@ Script C:\Windows\System32\spool\drivers\color
 Script C:\Windows\SysWOW64\FxsTmp                          
 Script C:\Windows\SysWOW64\Tasks                           
 Script C:\Windows\SysWOW64\com\dmp  
-#>  
-    [CmdletBinding()] Param ()
+#>
+
+# Function Version: 0.90
+
+    [CmdletBinding()] Param (
+        [Switch]
+        $Rerun,
+
+        [ValidateSet("All","Appx","Dll","Exe","Msi","Script")]
+        [String]
+        $RuleSection = "All"
+    )
     Process
     {
         Try
         {
-            #Array with paths
             $PathArray = @()
-
-            $Rules = Get-PALRules -OutputRules Path -RuleActions Allow
+            $FinaleArray = @()
             
-            foreach($Ru in $Rules)
+            $AllAppLockerRules = Get-PALRules -OutputRules Path -RuleActions Allow -RuleSection $RuleSection
+            
+            $AllPaths = "C:\"
+            # Check if global variable exist. If it does, WriteablePaths has been runned.
+            if(!($WriteablePaths))
             {
-                $InjectiblePaths = @()
-                if($Ru.RulesList.path -eq "*")
-                {
-                    #Wildcard - Search everything!
-                    $AllPaths = (Get-ChildItem C:\ -Directory -Recurse).FullName
-                    $InjectiblePaths = Get-PALWriteablepaths -Path $AllPaths -ErrorAction SilentlyContinue
-                }
-                else
-                {
-                    foreach($R in $Ru.RulesList)
-                    {
-                        $Paths = Expand-PALPath -Path $R.path
-                        foreach($pa in $Paths)
-                        {
-                            $InjectiblePaths += Get-PALWriteablepaths -Path $pa
-                        }
-                    }                
-                }
-            
-                foreach($InjPath in $InjectiblePaths)
-                {
-                        $RuObject = New-Object PSObject
-                        $RuObject | Add-Member NoteProperty Name $Ru.Name
-                        $RuObject | Add-Member NoteProperty Path $InjPath
-                        $PathArray += $RuObject
-                }
+                Get-PALWriteablepaths -Path $AllPaths -ErrorAction SilentlyContinue
             }
 
-            #remove deny rules from the return array
-            $denyrules = Get-PALRules -OutputRules Path -RuleActions Deny
-            $FinaleArray = @()
-            if($denyrules)
+            if($Rerun)
             {
-                foreach($pat in $PathArray)
+                Get-PALWriteablepaths -Path $AllPaths -Rerun -ErrorAction SilentlyContinue
+            }
+
+            
+
+            #Loop through each section DLL,EXE++
+            foreach($SectionRules in $AllAppLockerRules)
+            {
+                # Fresh empty array for each section
+                $AllowedPathsArray = @()
+                
+                #Loop through each rule in the section
+                foreach($Rule in $SectionRules.RulesList)
                 {
-                    # Deny rules present for section?
-                    if($denyrules[($denyrules.Name.IndexOf($pat.Name))])
+                    # Expand the AppLocker path variables into real paths
+                    $Paths = Expand-PALPath -Path $Rule.RulePath
+                    foreach($Path in $Paths)
                     {
-                        foreach($denr in $denyrules[($denyrules.Name.IndexOf($pat.Name))])
-                        { #DLL, EXE, MSI...
+                        
+                        if($Path -match "\.\w{2,4}$")
+                        #File
+                        {
                             
-                            foreach($pa in $denr.ruleslist.path)
+                        }
+                        else
+                        #Folder
+                        {
+                            #Loop through all writeable paths to see if there is a match. Add to list if there is.
+                            #Compare using tolower and normalized paths
+                            foreach($Wpath in $WriteablePaths)
                             {
-                                $diffe = $($pat.path)
-                                if($pa -like "*$diffe*")
+                                if($(Join-Path -Path $($Wpath.ToLower()) -ChildPath $null) -like "$(Join-Path -Path $($Path.ToLower()) -ChildPath $null)*")
                                 {
+                                    # Only add if it is not in the array already
+                                    if($AllowedPathsArray -notcontains $Wpath)
+                                    {
+                                        $AllowedPathsArray += $Wpath
+                                    }
                                 }
-                                else
-                                {
-                                    #Not
-                                    $DuObject = New-Object PSObject
-                                    $DuObject | Add-Member NoteProperty Name $Denr.Name
-                                    $DuObject | Add-Member NoteProperty Path $pat.path
-                                    $FinaleArray += $DuObject
-                                }
+                            }        
+                        }
+                    }
+                }                
+
+                foreach($AllowedPath in $AllowedPathsArray)
+                {
+                        $RuObject = New-Object PSObject
+                        $RuObject | Add-Member NoteProperty Name $SectionRules.Name
+                        $RuObject | Add-Member NoteProperty Path $AllowedPath
+                        $PathArray += $RuObject
+                }
+            
+            }
+
+            # Remove deny rules from the PathArray array
+            $DenyRules = Get-PALRules -OutputRules Path -RuleActions Deny -RuleSection $RuleSection
+            
+            # Check if Deny rules are present
+            if($DenyRules)
+            {
+                foreach($PathObj in $PathArray)
+                {
+                    $Add = $true
+                    # See if Path we are checking has the correct section (DLL,Script). -1 eq not.
+                    if(!($DenyRules.Name.IndexOf($($PathObj.Name))) -eq "-1")
+                    {
+                        foreach($DRP in $DenyRules[($DenyRules.Name.IndexOf($($PathObj.Name)))].ruleslist.path)
+                        {
+                            $diff = $($PathObj.path)
+                            if($(Join-Path -Path $($DRP.ToLower()) -ChildPath $null) -like "$(Join-Path -Path $($diff.ToLower()) -childpath $null)*")
+                            {
+                                #Dont add, because it is a deny rule
+                                $Add = $false
                             }
                         }
                     }
-                    else
+                    
+                    if($Add)
                     {
-                        $FinaleArray += $pat
+                        $FinaleArray += $PathObj
                     }
                 }
                 return $FinaleArray
@@ -145,7 +190,15 @@ Script C:\Windows\SysWOW64\com\dmp
             else
             {
                 #No deny rules - return patharray instead
-                return $PathArray
+                if($PathArray)
+                {
+                    return $PathArray
+                }
+                else
+                {
+                    Write-Verbose "No possible paths found - returning null"
+                    return $null
+                }
             }
         }
         Catch

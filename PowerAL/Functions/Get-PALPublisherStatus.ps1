@@ -71,6 +71,7 @@ ProductName "SYSINTERNALS AUTORUNS" -SignFileName "Autoruns.exe" -SignVersion "1
 Deny
 
 #>    
+# Function Version: 0.70
     [CmdletBinding()] Param (
         [parameter(Mandatory=$true,ParameterSetName="AutoSignInfo")]
         [String]
@@ -119,7 +120,7 @@ Deny
 
             if($OfflineXML)
             {
-                $PublisherRules = Get-PALRules -OutputRules Publisher -RuleActions All -OfflineXML $OfflineXML
+                $PublisherRules = Get-PALRulesNative -OutputRules Publisher -RuleActions All -OfflineXML $OfflineXML
             }
             else
             {

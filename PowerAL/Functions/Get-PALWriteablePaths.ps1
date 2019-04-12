@@ -1,4 +1,4 @@
-﻿function Get-PALWriteablepaths
+﻿function Get-PALWriteablePaths
 {
 <#
 .SYNOPSIS
@@ -35,7 +35,10 @@ C:\windows\System32\spool\drivers\color
 C:\windows\SysWOW64\FxsTmp
 C:\windows\SysWOW64\Tasks
 C:\windows\SysWOW64\com\dmp
-#>  
+#>
+
+# Function Version: 1.00
+  
     [CmdletBinding()] Param(
         [Parameter(Mandatory=$true)]
         [String]
@@ -46,38 +49,49 @@ C:\windows\SysWOW64\com\dmp
     )
     begin
     {
-        #Check if path is checked before. stored in local folder where script is executed
-        #turn path to filename
-        $filename = $Path.Replace(":\","-")
-        $filename = $filename.Replace("\","-")
-        $filename = $filename.TrimEnd("-")
-        $filename = "$env:temp\PAL-$filename.log"
-        if(Test-Path -Path $filename)
+        if($Rerun)
         {
-            if($Rerun)
-            {
-                Remove-Item -Path $filename
-                [bool]$UseFile = $false
-            }
-            else
-            {
-                [bool]$UseFile = $true
-                Write-Verbose "Path checked before, read result from file instead of rerun"
-            }
+            Write-Verbose "Rerun specified, setting global arrays to null"
+            $ScannedPaths = $null
+            $WriteablePaths = $null
         }
+        
+        
     }
 
     Process
     {
-        if($UseFile)
+        #To keep array intact if they contain data
+        if($scannedPaths -eq $null)
         {
-            $writeablepaths = Get-Content $filename
+            $Global:ScannedPaths = @()
+        }
+
+        if($writeablepaths -eq $null)
+        {
+            $Global:WriteablePaths = @()
+        }
+
+        [Bool]$Match = $false
+        foreach($sp in $Global:scannedPaths)
+        {
+            if($Path.ToLower() -like "*$($sp.ToLower())*")
+            {
+                $Match = $true
+            }
+        }
+
+        if($Match)
+        {
+            Write-Verbose "Path already scanned"
+            return $Global:writeablepaths
         }
         else
         {
+            # Add the path to scanned path list
+            $Global:ScannedPaths += $path
+
             [string]$tempname = "$(Get-Random).txt"
-            write-debug $tempname
-            $writeablepaths = @()
 
             $AllPaths = (Get-ChildItem $($path) -directory -Recurse -ErrorAction SilentlyContinue).FullName
 
@@ -97,7 +111,7 @@ C:\windows\SysWOW64\com\dmp
                     New-Item -Path $pth -Name $tempname -ItemType File -ErrorAction Stop | Out-Null
                     #New-Item -Path $pth -Name $tempname -ItemType Directory -ErrorAction Stop | Out-Null
                     Write-verbose "Created file: $pth\$tempname"
-                    $writeablepaths += $pth
+                    $Global:writeablepaths += $pth
                     
                 }
                 catch{
@@ -130,12 +144,8 @@ C:\windows\SysWOW64\com\dmp
                 {
                 }
             }
+
+            return $Global:writeablepaths
         }
-        if(!($UseFile))
-        {
-            $writeablepaths | Out-File $filename
-        }
-        
-        return $writeablepaths
     }
 }

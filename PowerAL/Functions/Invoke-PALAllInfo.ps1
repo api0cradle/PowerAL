@@ -7,12 +7,12 @@ Runs all information checks to display current status of AppLocker on the local 
 
 Author: @oddvarmoe
 License: BSD 3-Clause
-Required Dependencies: Get-PALRulesStatus,Get-PALServiceStatus,Get-PALRules
+Required Dependencies: Get-PALRuleSectionStatus,Get-PALServiceStatus,Get-PALRules
 Optional Dependencies: None
 
 .DESCRIPTION
 
-Checks AppLocker Rules status (Auditing,Enforced,Not configured), Service status (started,stopped,starttype) and show the AppLocker Rules
+Checks AppLocker Rules status (Auditing,Enforced,NotConfigured), Service status (started,stopped,starttype) and show the AppLocker Rules
 
 .EXAMPLE
 
@@ -62,7 +62,10 @@ RulesList : {@{Ruletype=FilePathRule; Action=Allow; SID=S-1-1-0; Description=All
             Description=Allows members of the Everyone group to run digitally signed Windows Installer files.; Name=(Default Rule) All digitally 
             signed Windows Installer files; Id=b7af7102-efde-4369-8a89-7a6a392d1473; PublisherName=*; Productname=*; BinaryName=*; 
             LowSection=0.0.0.0; HighSection=*}}
-#>    
+#>
+
+# Function Version: 1.00
+    
     [CmdletBinding()] Param ()
     Process
     {
@@ -71,7 +74,7 @@ RulesList : {@{Ruletype=FilePathRule; Action=Allow; SID=S-1-1-0; Description=All
             "`n[*] Running Invoke-PALAllInfo"
             
             "`n`n[*] Checking AppLocker Rule status"
-            $Result = Get-PALRulesStatus
+            $Result = Get-PALRuleSectionStatus
             $Result | Format-List
 
             "`n`n[*] Checking AppLocker Service status"

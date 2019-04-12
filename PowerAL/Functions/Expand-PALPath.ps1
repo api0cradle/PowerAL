@@ -13,6 +13,7 @@ Optional Dependencies: None
 .DESCRIPTION
 Takes path as input and normalizes it by changing AppLocker specific parameters into paths.
 If variable that is sent into the function resolves to two paths (ex: System32/SysWOW64) the function will return both.
+It also resolves paths containing ADS rules such as "%windir%\folder:*".
 
 .EXAMPLE
 
@@ -33,9 +34,18 @@ PS C:\> Expand-PALPath -Path "*"
 
 C:
 
+.EXAMPLE
+
+PS C:\> Expand-PALPath -Path "%windir%\tasks:*"
+
+C:\Windows\tasks:*
 #>
+
+# Function Version: 0.90
+
 [CmdletBinding()] Param (
-        [String]
+        [Parameter(ValueFromPipeline)]
+		[String]
         $Path
 
     )
@@ -74,12 +84,24 @@ C:
                 $Temp = ($Path)
             }
             
-            $Temp = $Temp.TrimEnd("*")
+            if($Temp -match ":\*")
+            {
+            }
+            else
+            {
+                $Temp = $Temp.TrimEnd("*")
+            }
             
             $ReturnPaths += $Temp
             if($TempX64)
             {
-                $TempX64 = $TempX64.TrimEnd("*")
+                if($TempX64 -match ":\*")
+                {
+                }
+                else
+                {
+                    $TempX64 = $TempX64.TrimEnd("*")
+                }
                 $ReturnPaths += $TempX64
             }
             
