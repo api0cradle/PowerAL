@@ -30,12 +30,12 @@ Current list of functions:
 # Change log
 
 version 0.90:
-	- Allowed pipe to expand-palpath
-	- Get-PALRulesNative created - Must still be used for OfflineXML checking
-	- Added rerun to Get-PALWriteableAllowedPaths
-	- Changed Get-PALWriteAblePaths to keep previous scans in Global variables (memory). Also it is optimalized to not scan the same area twice.
-	- Removed Invoke-PALRemoveCachedPath since all is done in memory
-	- ADS support on Expand-PALPath
-	- Changed name from Get-PALRulesStatus to Get-PALRuleSectionStatus
-	- Wrote Get-PALRules by getting AppLocker rules from Registry instead of using the native way leveraging Get-AppLockerPolicy
-	- + many more things I forgot to write down
+- Allowed pipe to expand-palpath
+- Get-PALRulesNative created - Must still be used for OfflineXML checking
+- Added rerun to Get-PALWriteableAllowedPaths
+- Changed Get-PALWriteAblePaths to keep previous scans in Global variables (memory). Also it is optimalized to not scan the same area twice.
+- Removed Invoke-PALRemoveCachedPath since all is done in memory
+- ADS support on Expand-PALPath
+- Changed name from Get-PALRulesStatus to Get-PALRuleSectionStatus
+- Wrote Get-PALRules by getting AppLocker rules from Registry instead of using the native way leveraging Get-AppLockerPolicy
+-  + many more things I forgot to write down
