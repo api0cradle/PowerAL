@@ -41,11 +41,11 @@ PS C:\> Expand-PALPath -Path "%windir%\tasks:*"
 C:\Windows\tasks:*
 #>
 
-# Function Version: 0.90
+# Function Version: 1.00
 
 [CmdletBinding()] Param (
         [Parameter(ValueFromPipeline)]
-		[String]
+		[string[]]
         $Path
 
     )
@@ -54,57 +54,62 @@ C:\Windows\tasks:*
         Try
         {
             $ReturnPaths = @()
-            $Temp = $null
-            $TempX64 = $null
 
-            if($Path -eq "*")
+            foreach($P in $Path)
             {
-                $Temp = $Path -replace "\*",$env:SystemDrive
-            }
-            elseif($Path -match "%PROGRAMFILES%")
-            {
-                    $Temp = $Path -replace "%PROGRAMFILES%",$env:ProgramFiles
-                    $TempX64 = $Path -replace "%PROGRAMFILES%",${env:ProgramFiles(x86)}
+                $Temp = $null
+                $TempX64 = $null
+
+                if($P -eq "*")
+                {
+                    $Temp = $P -replace "\*",$env:SystemDrive
                 }
-            elseif($Path -match "%windir%")
-            {
-                $Temp = $Path -replace "%windir%",$env:windir
-            }
-            elseif($Path -match "%system32%")
-            {
-                $Temp = $Path -replace "%SYSTEM32%","c:\windows\system32"    
-                $TempX64 = $Path -replace "%SYSTEM32%","c:\windows\syswow64"    
-            }
-            elseif($Path -match "%OSDRIVE%")
-            {
-                $Temp = $Path -replace "%OSDRIVE%",$env:SystemDrive
-            }
-            else
-            {
-                $Temp = ($Path)
-            }
-            
-            if($Temp -match ":\*")
-            {
-            }
-            else
-            {
-                $Temp = $Temp.TrimEnd("*")
-            }
-            
-            $ReturnPaths += $Temp
-            if($TempX64)
-            {
-                if($TempX64 -match ":\*")
+                elseif($P -match "%PROGRAMFILES%")
+                {
+                        $Temp = $P -replace "%PROGRAMFILES%",$env:ProgramFiles
+                        $TempX64 = $P -replace "%PROGRAMFILES%",${env:ProgramFiles(x86)}
+                    }
+                elseif($P -match "%windir%")
+                {
+                    $Temp = $P -replace "%windir%",$env:windir
+                }
+                elseif($P -match "%system32%")
+                {
+                    $Temp = $P -replace "%SYSTEM32%","c:\windows\system32"    
+                    $TempX64 = $P -replace "%SYSTEM32%","c:\windows\syswow64"    
+                }
+                elseif($P -match "%OSDRIVE%")
+                {
+                    $Temp = $P -replace "%OSDRIVE%",$env:SystemDrive
+                }
+                else
+                {
+                    $Temp = ($P)
+                }
+                
+                if($Temp -match ":\*")
                 {
                 }
                 else
                 {
-                    $TempX64 = $TempX64.TrimEnd("*")
+                    $Temp = $Temp.TrimEnd("*")
                 }
-                $ReturnPaths += $TempX64
+                
+                $ReturnPaths += $Temp
+                if($TempX64)
+                {
+                    if($TempX64 -match ":\*")
+                    {
+                    }
+                    else
+                    {
+                        $TempX64 = $TempX64.TrimEnd("*")
+                    }
+                    $ReturnPaths += $TempX64
+                }
+                
+                
             }
-            
             return $ReturnPaths
         }
         Catch
