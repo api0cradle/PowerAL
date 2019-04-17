@@ -3,7 +3,7 @@ function Get-PALWriteableAllowedPaths
 <#
 .SYNOPSIS
 
-Lists paths that are allowed for execution that the current user can write to. Currently does not handle Exceptions that are defined in rules, only explicit deny rules.
+Lists paths that are allowed for execution that the current user can write to or create. Currently does not handle Exceptions that are defined in rules, only explicit deny rules.
 
 Author: @oddvarmoe
 License: BSD 3-Clause
@@ -125,7 +125,6 @@ Script C:\Windows\SysWOW64\com\dmp
                         if($Path -match "\.\w{2,4}$")
                         #File
                         {
-                            
                         }
                         else
                         #Folder

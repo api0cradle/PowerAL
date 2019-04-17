@@ -93,7 +93,7 @@ C:\windows\SysWOW64\com\dmp
 
             [string]$tempname = "$(Get-Random).txt"
 
-            $AllPaths = (Get-ChildItem $($path) -directory -Recurse -ErrorAction SilentlyContinue).FullName
+            $AllPaths = (Get-ChildItem $($path) -directory -Recurse -force -ErrorAction SilentlyContinue).FullName
 
             $ProgressTotal = $AllPaths.count
             $i = 0

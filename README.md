@@ -1,6 +1,9 @@
 # PowerAL
 
 Current version: 0.90
+Version control will not be 100% until I have reached version 1.0.
+I use this area as my work area to commit my code. After version 1.0 I will be using a DEV branch instead
+for rolling changes.
 
 A Powershell module for interacting with AppLocker.
 Module is designed to be able to run in Constrained language mode.
@@ -18,6 +21,7 @@ Current list of functions:
 - Get-PALRules
 - Get-PALRuleSectionStatus
 - Get-PALServiceStatus
+- Get-PALMissingAllowedPaths
 - Get-PALWriteableAllowedPaths
 - Get-PALWriteablePaths
 - Invoke-PALAllInfo
@@ -38,4 +42,7 @@ version 0.90:
 - ADS support on Expand-PALPath
 - Changed name from Get-PALRulesStatus to Get-PALRuleSectionStatus
 - Wrote Get-PALRules by getting AppLocker rules from Registry instead of using the native way leveraging Get-AppLockerPolicy
+- Added support for multiple paths to Expand-palpath
+- Get-PALMissingAllowedPaths created
+- Rewrote Get-PALEXploitablerules, added check for ADS and some other stuff
 -  + many more things I forgot to write down
