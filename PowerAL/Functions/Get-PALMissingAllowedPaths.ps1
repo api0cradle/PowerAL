@@ -12,23 +12,30 @@ Optional Dependencies: None
 
 .DESCRIPTION
 
-##Retrieves the path from all the allowed AppLocker path rules and checks the paths against Get-PALWriteablePaths. 
-##It will also remove paths that are explicit denied.
-##Outputs: Name,Path
+Retrieves the path from all the allowed AppLocker path rules and checks if the path is missing or not.  
+It will list out the paths it cannot find and these paths can likely be exploited if the user can create the folders. 
+Currently it does not resolve * in paths so it may contain false positives. 
+Outputs: Name,Path
 
-##.PARAMETER RuleSection
-##What sort of section you want the rules for. Default is "All
-##Can be "All","Dll","Exe","Script","Appx","Msi". This Parameter is passed to the Get-PALRules.
+.PARAMETER RuleSection
+What sort of section you want the rules for. Default is "All
+Can be "All","Dll","Exe","Script","Appx","Msi". This Parameter is passed to the Get-PALRules.
 
 
 .EXAMPLE
 
-##PS C:\> Get-PALMissingAllowedPaths
+PS C:\> Get-PALMissingAllowedPaths
 
+Name   Path                                                                                                                      
+----   ----                                                                                                                      
+Exe    C:\WINPROG\FARMS\FARM.EXE                                                                                                   
+Exe    C:\USERS\*\APPDATA\LOCAL\CITRIX\SELFSERVICE\PROGRAM FILES\SELFSERVICEPLUGIN.EXE                                           
+Exe    C:\HOMEMADE\CORE.EXE                                                                                                         
+Script C:\HOMEMADE\START.BAT
 
 #>
 
-# Function Version: 0.10
+# Function Version: 0.80
 
     [CmdletBinding()] Param (
         [ValidateSet("All","Appx","Dll","Exe","Msi","Script")]
