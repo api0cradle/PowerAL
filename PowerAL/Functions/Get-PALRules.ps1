@@ -111,7 +111,7 @@ Script {@{ParentName=Script; Ruletype=FilePathRule; Action=Deny; SID=S-1-1-0; De
 
 #>
 
-# Function Version: 0.90
+# Function Version: 0.95
 
     [CmdletBinding()] Param (
         [ValidateSet("All","Path","Publisher","Hash")]
@@ -130,6 +130,9 @@ Script {@{ParentName=Script; Ruletype=FilePathRule; Action=Deny; SID=S-1-1-0; De
         #S-1-1-0 = Everyone - Default
         #* = ALL Sids
         $SID = "S-1-1-0",
+
+        [Switch]
+        $ExceptionsAsDeny,
 
         [Switch]
         $XML,
@@ -316,6 +319,38 @@ Script {@{ParentName=Script; Ruletype=FilePathRule; Action=Deny; SID=S-1-1-0; De
                         {
 		        			if($OutputRules -eq "Path" -or $OutputRules -eq "All")
                             {
+                                ## TEST CODE
+                                if($ExceptionsAsDeny)
+                                {
+                                    if($xml.FirstChild.UserOrGroupSid -eq $SID -or $SID -eq "*")
+                                    {
+                                        #Exceptions
+                                        if($xml.FirstChild.Exceptions.FilePathCondition)
+                                        {
+                                            foreach($Exception in $xml.FirstChild.Exceptions.FilePathCondition)
+                                            {
+                                                $ExceptionPath = Expand-PALPath -Path $($Exception.Path)
+                                                $RulesObject = New-Object PSObject
+                            
+                                                #Common structure for all rule types
+                                                $RulesObject | Add-Member NoteProperty 'ParentName' $RuleType
+                                                $RulesObject | Add-Member NoteProperty 'Ruletype' $xml.FirstChild.LocalName
+                                                $RulesObject | Add-Member NoteProperty 'Action' 'Deny'
+                                                $RulesObject | Add-Member NoteProperty 'SID' $xml.FirstChild.UserOrGroupSid
+                                                $RulesObject | Add-Member NoteProperty 'Description' $xml.FirstChild.Description
+                                                $RulesObject | Add-Member NoteProperty 'Name' $xml.FirstChild.Name
+                                                $RulesObject | Add-Member NoteProperty 'Id' $xml.FirstChild.Id
+
+                                                #Special Path attributes
+                                                $RulesObject | Add-Member NoteProperty 'Path' $ExceptionPath
+                                                $RulesObject | Add-Member NoteProperty 'RulePath' $Exception.Path
+
+                                                $RulesArray += $RulesObject
+                                            }
+                                        }
+                                    }
+                                }
+
 		        				if($xml.FirstChild.Action -eq $RuleActions -or $RuleActions -eq "All")
                                 {
                                     $RealPath = Expand-PALPath -Path $($xml.FirstChild.Conditions.FilePathCondition.Path)
@@ -340,21 +375,24 @@ Script {@{ParentName=Script; Ruletype=FilePathRule; Action=Deny; SID=S-1-1-0; De
                                             $RulesObject | Add-Member NoteProperty 'RulePath' $xml.FilePathRule.Conditions.FilePathCondition.Path
 
                                             #Exceptions
-                                            if($xml.FirstChild.Exceptions.FilePathCondition)
+                                            if(!($ExceptionsAsDeny))
                                             {
-                                                $RealExceptionsPath = Expand-PALPath -Path $($xml.FirstChild.Exceptions.FilePathCondition.Path)
-                                                $RulesObject | Add-Member NoteProperty 'PathExceptions' $RealExceptionsPath
-                                                $RulesObject | Add-Member NoteProperty 'RulePathExceptions' $xml.FirstChild.Exceptions.FilePathCondition.Path
+                                                if($xml.FirstChild.Exceptions.FilePathCondition)
+                                                {
+                                                    $RealExceptionsPath = Expand-PALPath -Path $($xml.FirstChild.Exceptions.FilePathCondition.Path)
+                                                    $RulesObject | Add-Member NoteProperty 'PathExceptions' $RealExceptionsPath
+                                                    $RulesObject | Add-Member NoteProperty 'RulePathExceptions' $xml.FirstChild.Exceptions.FilePathCondition.Path
+                                                }
+                                                if($xml.FirstChild.Exceptions.FileHashCondition)
+                                                {
+                                                    $RulesObject | Add-Member NoteProperty 'HashExceptions' $xml.FirstChild.Exceptions.FileHashCondition
+                                                }
+                                                if($xml.FirstChild.Exceptions.FilePublisherCondition)
+                                                {
+                                                    $RulesObject | Add-Member NoteProperty 'PublisherExceptions' $xml.FirstChild.Exceptions.FilePublisherCondition
+                                                }
                                             }
-                                            if($xml.FirstChild.Exceptions.FileHashCondition)
-                                            {
-                                                $RulesObject | Add-Member NoteProperty 'HashExceptions' $xml.FirstChild.Exceptions.FileHashCondition
-                                            }
-                                            if($xml.FirstChild.Exceptions.FilePublisherCondition)
-                                            {
-                                                $RulesObject | Add-Member NoteProperty 'PublisherExceptions' $xml.FirstChild.Exceptions.FilePublisherCondition
-                                            }
-
+                                            
                                             $RulesArray += $RulesObject 
                                         }
 		        				    }
