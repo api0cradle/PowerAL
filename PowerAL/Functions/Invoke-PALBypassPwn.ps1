@@ -124,6 +124,8 @@ Remove-item "C:\Windows\tracing" -stream 3a8a14d0-eda9-44f6-b7c6-1e97aff3c8cf.ex
             if($Type -eq "Exe")
             {
                 "[*] Getting modifiable paths allowed by AppLocker Path rules - Be very patient!"
+                #Needed because of bug with Global variables
+                Get-PALWriteableAllowedPaths | Out-Null
                 $AllowedPaths = Get-PALWriteableAllowedPaths -RuleSection Exe
 
                 if($AllowedPaths)
