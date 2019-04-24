@@ -75,7 +75,7 @@ Script C:\Windows\SysWOW64\Tasks
 Script C:\Windows\SysWOW64\com\dmp  
 #>
 
-# Function Version: 0.90
+# Function Version: 0.95
 
     [CmdletBinding()] Param (
         [Switch]
@@ -107,7 +107,6 @@ Script C:\Windows\SysWOW64\com\dmp
             }
 
             
-
             #Loop through each section DLL,EXE++
             foreach($SectionRules in $AllAppLockerRules)
             {
@@ -144,8 +143,8 @@ Script C:\Windows\SysWOW64\com\dmp
                             }        
                         }
                     }
-                }                
-
+                }
+                
                 foreach($AllowedPath in $AllowedPathsArray)
                 {
                         $RuObject = New-Object PSObject
@@ -157,7 +156,7 @@ Script C:\Windows\SysWOW64\com\dmp
             }
 
             # Remove deny rules from the PathArray array
-            $DenyRules = Get-PALRules -OutputRules Path -RuleActions Deny -RuleSection $RuleSection
+            $DenyRules = Get-PALRules -OutputRules Path -RuleActions Deny -RuleSection $RuleSection -ExceptionsAsDeny
             
             # Check if Deny rules are present
             if($DenyRules)
@@ -165,17 +164,14 @@ Script C:\Windows\SysWOW64\com\dmp
                 foreach($PathObj in $PathArray)
                 {
                     $Add = $true
-                    # See if Path we are checking has the correct section (DLL,Script). -1 eq not.
-                    if(!($DenyRules.Name.IndexOf($($PathObj.Name))) -eq "-1")
+                    foreach($DRP in $DenyRules[($DenyRules.Name.IndexOf($($PathObj.Name)))].ruleslist.path)
                     {
-                        foreach($DRP in $DenyRules[($DenyRules.Name.IndexOf($($PathObj.Name)))].ruleslist.path)
+                        $diff = $($PathObj.path)
+                        if($(join-path -path $diff -ChildPath $null) -like "*$(join-path -path $drp -ChildPath $null)*")
                         {
-                            $diff = $($PathObj.path)
-                            if($(Join-Path -Path $($DRP.ToLower()) -ChildPath $null) -like "$(Join-Path -Path $($diff.ToLower()) -childpath $null)*")
-                            {
-                                #Dont add, because it is a deny rule
-                                $Add = $false
-                            }
+                            #Dont add, because it is a deny rule
+                            $Add = $false
+
                         }
                     }
                     

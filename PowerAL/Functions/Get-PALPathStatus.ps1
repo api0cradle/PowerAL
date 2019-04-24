@@ -89,7 +89,7 @@ Deny
         {
             #Check if path or file
             #Uses simple check if supplied string ends with ".{2-4chars}"
-            if($path -match "\.\w{2,4}$")
+            if($path -match "\.\w{2,4}$" -and $path -notmatch "\.\d{2,4}$")
             {
                 Write-Verbose "Specified file"
                 $Type = "File"
