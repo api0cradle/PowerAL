@@ -69,7 +69,7 @@ Deny
 
 #>    
 
-# Function Version: 0.90
+# Function Version: 0.95
 
     [CmdletBinding()] Param (
         [Parameter(Mandatory=$true)]
@@ -146,34 +146,7 @@ Deny
             }
             else
             {
-                $PathRules = Get-PALRules -OutputRules Path -RuleActions All -SID $SID
-            }
-
-		    #$Status = $null
-            $AllDenyAndExceptionPaths = @()
-
-            foreach($section in $PathRules)
-            {
-                $SectionDenyRules = $null
-                foreach($secrule in $section.ruleslist)
-                {
-                    if($secrule.PathExceptions)
-                    {
-                        foreach($sr in $secrule.PathExceptions)
-                        {
-                            $AllDenyAndExceptionPaths += $secrule | Select-Object @{Name = 'Name'; Expression = {$_.ParentName}}, @{Name = 'Path'; Expression = {$sr}}
-                        }
-                    }
-                }
-                
-                $SectionDenyRules = Get-PALRules -OutputRules Path -RuleActions Deny -RuleSection $($section.name)
-                if($SectionDenyRules)
-                {
-                    foreach($SecDenR in $SectionDenyRules.RulesList)
-                    {
-                        $AllDenyAndExceptionPaths += $SecDenR | Select-Object @{Name = 'Name'; Expression = {$_.ParentName}}, @{Name = 'Path'; Expression = {$SecDenR.Path}}
-                    }
-                }
+                $DenyRules = Get-PALRules -OutputRules Path -RuleActions Deny -SID $SID -ExceptionsAsDeny
             }
 
             ## File check
@@ -194,7 +167,7 @@ Deny
                 # Path is allowed, now check all deny rules and exceptions if it is denied
                 if($Allowed)
                 {
-                    foreach($DenyRule in $($AllDenyAndExceptionPaths | where{$_.name -eq $FileType}))
+                    foreach($DenyRule in $($DenyRules | where-object{$_.name -eq $FileType}).RulesList)
                     {
                         if($path -like "*$($DenyRule.path)*")
                         {
@@ -236,7 +209,7 @@ Deny
                 
                     if($Allowed)
                     {
-                        foreach($DenyRule in $($AllDenyAndExceptionPaths | where{$_.name -eq $($Section.Name)}))
+                        foreach($DenyRule in $($DenyRules | where-object{$_.name -eq $($Section.Name)}).RulesList)
                         {
                             if($path -like "*$($DenyRule.path)*")
                             {
