@@ -1,12 +1,14 @@
 # PowerAL
 
-Current version: 0.90
+Current version: 0.95
+
 Version control will not be 100% until I have reached version 1.0.
 I use this area as my work area to commit my code. After version 1.0 I will be using a DEV branch instead
 for rolling changes.
 
-A Powershell module for interacting with AppLocker.
+PowerAL is a Powershell module for interacting with AppLocker rules.
 Module is designed to be able to run in Constrained language mode.
+The goal with the module is to easily be able to identify AppLocker weaknesses/config flaws.
 This module is a work in progress. First version (0.63) was released at DerbyCon.
 
 1. Run Powershell -ep unrestricted
@@ -21,6 +23,7 @@ Current list of functions:
 - Get-PALRules
 - Get-PALRuleSectionStatus
 - Get-PALServiceStatus
+- Get-PALMissingADSRules
 - Get-PALMissingAllowedPaths
 - Get-PALWriteableAllowedPaths
 - Get-PALWriteablePaths
@@ -32,6 +35,13 @@ Current list of functions:
 
 
 # Change log
+
+version 0.95:
+- Added ExceptionsAsDeny to Get-PALRules
+- Created Get-PALMissingADSRules
+- Adjustment of functions to use ExceptionsAsDeny to handle exceptions
+- Refactored Get-PALPathStatus
+ 
 
 version 0.90:
 - Allowed pipe to expand-palpath
